@@ -1,0 +1,24 @@
+{
+  "name": "flue-jetty",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A/B-eval an agent and catch a regression — Flue runs it, Jetty grades it (@jetty/sdk)",
+  "scripts": {
+    "demo": "tsx src/demo-offline.ts",
+    "deploy-grader": "tsx src/deploy-grader.ts",
+    "eval": "flue run eval --target node",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jetty/sdk": "*",
+    "@flue/runtime": "latest"
+  },
+  "devDependencies": {
+    "@flue/cli": "latest",
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": { "node": ">=18" }
+}
