@@ -3,6 +3,14 @@
 All notable changes to `@jetty/sdk` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-06-22
+
+### Added
+
+- `runAndWait` now accepts a `files` option, so a run can upload files (multipart
+  → `init_params.file_paths[]`) and still poll to a terminal status through the
+  same helper.
+
 ## [0.1.0] - 2026-06-20
 
 Initial release — the `JettyClient` extracted from `jettyio-skills` into a
