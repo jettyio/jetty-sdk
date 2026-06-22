@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Local env / secrets — never commit tokens
+.env
+.env.*
+!.env.example
+
+# OS noise
+.DS_Store
+
+# Lockfile is intentionally not committed: it is generated per-platform in CI
+# (npm on macOS strips Linux-only optional native deps, breaking `npm ci`).
+package-lock.json
+
+# generated example report
+report.html
+examples/**/report.html

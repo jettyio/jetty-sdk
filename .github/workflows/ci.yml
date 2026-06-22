@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sdk:
+    name: SDK (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The SDK runtime targets Node 18+, but the dev test runner (vitest 4)
+        # requires Node 20+, so CI runs on 20/22/24.
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # `npm install` (not `npm ci`) on purpose: we don't commit a lockfile, so
+      # Linux regenerates the platform-correct optional native deps each run.
+      - run: npm install --no-audit --no-fund
+      # Build first: the example workspace's typecheck resolves @jetty/sdk types
+      # from its built dist/, so the package must be compiled before typecheck.
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+  publish-dry-run:
+    name: npm publish --dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npm run build -w @jetty/sdk
+      - run: npm publish -w @jetty/sdk --dry-run

@@ -1,0 +1,15 @@
+{
+  "name": "jetty-sdk-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Jetty client SDKs and worked examples",
+  "type": "module",
+  "workspaces": ["packages/*", "examples/*"],
+  "scripts": {
+    "build": "npm run build -w @jetty/sdk",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test -w @jetty/sdk"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

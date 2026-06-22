@@ -1,0 +1,28 @@
+name: Publish
+
+# Publishes @jetty/sdk to npm when a tag like `v0.1.0` is pushed.
+# Requires an NPM_TOKEN repo secret with publish rights to the @jetty scope.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install --no-audit --no-fund
+      # Build first: the example workspace typechecks against @jetty/sdk's dist/.
+      - run: npm run build -w @jetty/sdk
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm publish -w @jetty/sdk --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
