@@ -112,6 +112,53 @@ import { parseWorkflowId } from "@jetty/sdk";
 const { trajectoryId } = parseWorkflowId(started.workflow_id);
 ```
 
+## Grading an agent output
+
+`gradeWithJetty` is the eval primitive: hand it an agent output and a Jetty
+**grading task** (a deterministic rubric or an LLM judge you deploy once), and it
+uploads the output, runs the grader to completion, reads its grade file, and
+labels the resulting trajectory — in one call. The grader is independent of the
+agent, so it isn't the agent scoring itself.
+
+```ts
+import { JettyClient, gradeWithJetty } from "@jetty/sdk";
+
+const jetty = new JettyClient();
+
+const { grade, trajectoryId } = await gradeWithJetty<{ total: number; pass: boolean }>(
+  jetty,
+  "acme",
+  "triage-grader",
+  {
+    files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
+    useTrialKeys: true,                  // grade on Jetty's free trial, no key
+    labels: (g) => ({                    // labels can read the grade
+      "eval.config": "v1",
+      "eval.grade": g.total.toFixed(2),
+      "eval.pass": String(g.pass),
+    }),
+  },
+);
+// The trajectory is the durable, comparable eval record. Diff eval.* labels
+// across configs to catch a regression before a customer does.
+```
+
+It accepts everything `runAndWait` does (`pollMs`, `timeoutMs`, `useTrialKeys`,
+`onPoll`, …) plus:
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `files` | — (required) | The output(s) to grade, uploaded with the run. |
+| `initParams` | `{}` | `init_params` for the grading task. |
+| `gradeFile` | `"grade.json"` | Filename suffix to match, or a predicate over the storage key. |
+| `parseGrade` | `JSON.parse(utf8)` | Parse the grade bytes into your grade type. |
+| `labels` | — | A label map, or a function of the parsed grade. |
+| `author` | `"jetty-sdk"` | Author recorded on the labels. |
+
+> The full worked example — an agent A/B-eval that catches a regression — is
+> [`examples/flue-jetty`](../../examples/flue-jetty): Flue runs the agent,
+> `gradeWithJetty` grades and stores each run.
+
 ## Files
 
 Uploads are multipart and land at `trajectory.init_params.file_paths[]`. Wire
@@ -175,8 +222,9 @@ so a run is never accidentally fired twice — pass `{ retry: true }` to overrid
 - **Routines (schedules)** — `listRoutines`, `getRoutine`, `createRoutine`, `updateRoutine`, `deleteRoutine`, `pauseRoutine`, `resumeRoutine`, `runRoutineNow`, `listRoutineRuns`
 - **Logs** — `getWorkflowLogs`
 
-Plus helpers: `parseWorkflowId`, `isTerminalStatus`, `resolveConfig`, and the
-full type set (`Trajectory`, `Step`, `Label`, `WorkflowResponse`, …).
+Plus helpers: `gradeWithJetty` (the eval primitive), `parseWorkflowId`,
+`isTerminalStatus`, `resolveConfig`, and the full type set (`Trajectory`, `Step`,
+`Label`, `WorkflowResponse`, …).
 
 ## Browser / custom fetch
 

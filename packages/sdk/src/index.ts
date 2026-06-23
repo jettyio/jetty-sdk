@@ -13,6 +13,13 @@ export {
 export { parseWorkflowId, isTerminalStatus, type ParsedWorkflowId } from "./poll.js";
 
 export {
+  gradeWithJetty,
+  type GradeOptions,
+  type GradeResult,
+  type GradeLabels,
+} from "./grade.js";
+
+export {
   HttpClient,
   mapHttpError,
   type FetchLike,

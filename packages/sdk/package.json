@@ -1,6 +1,6 @@
 {
   "name": "@jetty/sdk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Typed TypeScript client for the Jetty AI/ML workflow platform",
   "type": "module",
   "main": "./dist/index.js",

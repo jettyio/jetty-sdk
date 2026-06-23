@@ -15,7 +15,7 @@
  * `triage-grader` (run `npm run deploy-grader` once).
  */
 import type { FlueContext } from "@flue/runtime";
-import { JettyClient, type Trajectory } from "@jetty/sdk";
+import { JettyClient, gradeWithJetty } from "@jetty/sdk";
 import { CONFIGS, TICKETS } from "../tickets.js";
 import { extractTriage, makeTriageAgent } from "../agent.js";
 import { aggregate, renderVerdict, type RunResult } from "../eval.js";
@@ -29,20 +29,6 @@ interface Payload {
 interface Grade {
   total: number;
   pass: boolean;
-}
-
-/** Download the grader's grade.json off the completed trajectory. */
-async function readGrade(jetty: JettyClient, trajectory: Trajectory): Promise<Grade> {
-  const outputs = trajectory.steps?.run?.outputs ?? {};
-  const files = (outputs.files ?? outputs.results_files ?? []) as unknown[];
-  const keys = files
-    .map((f) => (typeof f === "string" ? f : (f as { path?: string }).path))
-    .filter((k): k is string => typeof k === "string");
-  const key = keys.find((k) => k.endsWith("grade.json"));
-  if (!key) throw new Error(`grader produced no grade.json (files: ${keys.join(", ") || "none"})`);
-  const bytes = (await jetty.downloadFile(key)).bytes;
-  const g = JSON.parse(new TextDecoder().decode(bytes)) as { total: number; pass: boolean };
-  return { total: Number(g.total), pass: Boolean(g.pass) };
 }
 
 export async function run(ctx: FlueContext<Payload>) {
@@ -63,33 +49,29 @@ export async function run(ctx: FlueContext<Payload>) {
       const session = await harness.session(`${config.id}-${ticket.id}`);
       const drafted = await session.prompt(JSON.stringify(ticket));
       const triage = extractTriage(drafted.text);
-
-      // Upload the case as a file (no quoting issues) and grade it server-side.
-      const graded = await jetty.runAndWait(
-        collection,
-        gradeTask,
-        { vars: { prompt: "Run the grader." } },
-        {
-          pollMs: 4000,
-          useTrialKeys,
-          files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
-        },
-      );
-
-      const grade = await readGrade(jetty, graded);
       const costUsd = drafted.usage.cost.total;
 
-      // Record the eval result on the trajectory (Jetty's scoring primitive).
-      const labels: [string, string][] = [
-        ["eval.config", config.id],
-        ["eval.ticket", ticket.id],
-        ["eval.grade", grade.total.toFixed(2)],
-        ["eval.pass", String(grade.pass)],
-        ["eval.cost_usd", costUsd.toFixed(6)],
-      ];
-      for (const [k, v] of labels) {
-        await jetty.addLabel(collection, gradeTask, graded.trajectory_id, k, v, author);
-      }
+      // Grade the draft server-side and record the result on the trajectory —
+      // upload, run the grader, read grade.json, and label, in one SDK call.
+      // The labels can read the grade itself, so `eval.grade` is the score.
+      const { grade, trajectoryId } = await gradeWithJetty<Grade>(jetty, collection, gradeTask, {
+        files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
+        initParams: { vars: { prompt: "Run the grader." } },
+        pollMs: 4000,
+        useTrialKeys,
+        author,
+        parseGrade: (bytes) => {
+          const g = JSON.parse(new TextDecoder().decode(bytes)) as Grade;
+          return { total: Number(g.total), pass: Boolean(g.pass) };
+        },
+        labels: (g) => ({
+          "eval.config": config.id,
+          "eval.ticket": ticket.id,
+          "eval.grade": g.total.toFixed(2),
+          "eval.pass": String(g.pass),
+          "eval.cost_usd": costUsd.toFixed(6),
+        }),
+      });
 
       results.push({
         configId: config.id,
@@ -97,7 +79,7 @@ export async function run(ctx: FlueContext<Payload>) {
         total: grade.total,
         pass: grade.pass,
         costUsd,
-        trajectoryId: graded.trajectory_id,
+        trajectoryId,
       });
       console.log(`  ${config.label} · ${ticket.id}: ${grade.total.toFixed(1)} ${grade.pass ? "PASS" : "fail"}`);
     }

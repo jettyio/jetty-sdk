@@ -33,7 +33,7 @@ task and wait for the trajectory. The grade comes back as a row you can label an
 compare.
 
 ```ts
-import { JettyClient } from "@jetty/sdk";
+import { JettyClient, gradeWithJetty } from "@jetty/sdk";
 import { triageAgent } from "../agent.js";
 
 const jetty = new JettyClient(); // JETTY_API_TOKEN from env or ~/.config/jetty/token
@@ -44,15 +44,15 @@ export async function run(ctx) {
   const session = await harness.session();
   const draft = await session.prompt(JSON.stringify(ctx.payload.ticket));
 
-  // 2. Jetty grades it server-side, with a grader that isn't the author.
-  const graded = await jetty.runAndWait("acme", "triage-grader", { vars: {} }, {
+  // 2. Jetty grades it server-side, with a grader that isn't the author —
+  //    upload, run the grader, read the grade, and label, in one call.
+  const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
     files: [{ filename: "case.json", data: draft.text }],
-    useTrialKeys: true, // grade on Jetty's free trial, no provider key
+    useTrialKeys: true,                          // grade on Jetty's free trial, no provider key
+    labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
   });
 
-  // 3. Label the trajectory so it's queryable and comparable.
-  await jetty.addLabel("acme", "triage-grader", graded.trajectory_id, "eval.grade", "4.7", "you");
-  return { gradeTrajectoryId: graded.trajectory_id };
+  return { grade, gradeTrajectoryId: trajectoryId };
 }
 ```
 
@@ -74,7 +74,7 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 > field is persisted. The SDK never logs your token. Tokens resolve from a
 > constructor arg, then `JETTY_API_TOKEN`, then `~/.config/jetty/token`.
 
-Requires `@jetty/sdk` 0.1.0+.
+Requires `@jetty/sdk` 0.2.0+ (for `gradeWithJetty`).
 
 ## What Jetty captures
 
