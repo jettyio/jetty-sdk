@@ -134,7 +134,7 @@ Re-running it updates the task.
 ## 6. Run the live A/B
 
 ```bash
-npx flue run eval --target node --payload '{"tickets":2}'
+npx flue run eval --target node --input '{"tickets":2}'
 ```
 
 Each ticket is a real server-side grade (a sandbox run), so start with `tickets:2`
@@ -169,7 +169,7 @@ unset ANTHROPIC_API_KEY
 npm run deploy-grader
 
 # grade on the trial
-JETTY_USE_TRIAL_KEYS=true npx flue run eval --target node --payload '{"tickets":2}'
+JETTY_USE_TRIAL_KEYS=true npx flue run eval --target node --input '{"tickets":2}'
 ```
 
 The trial covers **server-side Jetty runs** (the grader). The **Flue agent runs
@@ -209,8 +209,8 @@ detect regressions across releases — not just in this one terminal session.
 | File | Role |
 |------|------|
 | [`src/tickets.ts`](src/tickets.ts) | The eval cases + the two configs (`v1` warm, `v2` terse). |
-| [`src/agent.ts`](src/agent.ts) | The Flue triage agent, built from a config (`makeTriageAgent`). |
-| [`src/workflows/eval.ts`](src/workflows/eval.ts) | The live loop: for each config × ticket → Flue draft → `jetty.runAndWait` grade → label → collect. |
+| [`src/agent.ts`](src/agent.ts) | The Flue triage agent (`triageAgent`); the config's style is injected per prompt (`triagePrompt`). |
+| [`src/workflows/eval.ts`](src/workflows/eval.ts) | The `defineWorkflow` live loop: for each config × ticket → Flue draft → `gradeWithJetty` (grade + label) → collect. |
 | [`src/eval.ts`](src/eval.ts) | `aggregate()` (per-config pass-rate/score/cost) + `renderVerdict()` (the table). |
 | [`grader/RUNBOOK.md`](grader/RUNBOOK.md) | The independent grader — a deterministic Python rubric. |
 | [`src/deploy-grader.ts`](src/deploy-grader.ts) | Deploys the grader via the SDK (`createTask` + `setEnvironmentVars`). |

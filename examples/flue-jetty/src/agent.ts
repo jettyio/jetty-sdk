@@ -1,9 +1,11 @@
 /**
- * The Acme triage agent — built with Flue, parameterized by config so we can
- * A/B two versions of it. Flue owns the loop; Jetty grades the output.
+ * The Acme triage agent — built with Flue. Flue owns the loop; Jetty grades the
+ * output. The A/B configs (warm vs terse) aren't separate agents: there's one
+ * agent, and each config's style is injected into the prompt per run, so a
+ * single bound agent serves the whole comparison.
  */
-import { createAgent } from "@flue/runtime";
-import { type AgentConfig, instructionsFor } from "./tickets.js";
+import { defineAgent } from "@flue/runtime";
+import { type AgentConfig, type Ticket, instructionsFor } from "./tickets.js";
 
 export interface Triage {
   category: string;
@@ -11,12 +13,14 @@ export interface Triage {
   draft_reply: string;
 }
 
-export function makeTriageAgent(config: AgentConfig) {
-  return createAgent(() => ({
-    model: process.env.FLUE_MODEL ?? "anthropic/claude-sonnet-4-6",
-    description: `Acme Helpdesk triage agent (${config.label}).`,
-    instructions: instructionsFor(config),
-  }));
+/** One triage agent. The per-config style lives in the prompt (see `triagePrompt`). */
+export const triageAgent = defineAgent(() => ({
+  model: process.env.FLUE_MODEL ?? "anthropic/claude-sonnet-4-6",
+}));
+
+/** Build the triage prompt for a config × ticket: shared JSON contract + style + the ticket. */
+export function triagePrompt(config: AgentConfig, ticket: Ticket): string {
+  return `${instructionsFor(config)}\n\nTriage this support ticket now. Respond with ONLY the JSON object.\nTicket:\n${JSON.stringify(ticket)}`;
 }
 
 /** Pull the first {...} JSON object out of model text (tolerates fences/prose). */

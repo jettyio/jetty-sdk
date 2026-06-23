@@ -33,27 +33,32 @@ task and wait for the trajectory. The grade comes back as a row you can label an
 compare.
 
 ```ts
+import { defineWorkflow } from "@flue/runtime";
+import * as v from "valibot";
 import { JettyClient, gradeWithJetty } from "@jetty/sdk";
 import { triageAgent } from "../agent.js";
 
 const jetty = new JettyClient(); // JETTY_API_TOKEN from env or ~/.config/jetty/token
 
-export async function run(ctx) {
-  // 1. Flue runs the agent (it owns the loop).
-  const harness = await ctx.init(triageAgent);
-  const session = await harness.session();
-  const draft = await session.prompt(JSON.stringify(ctx.payload.ticket));
+export default defineWorkflow({
+  agent: triageAgent,
+  input: v.object({ ticket: v.any() }),
+  async run({ harness, input }) {
+    // 1. Flue runs the agent (it owns the loop).
+    const session = await harness.session();
+    const draft = await session.prompt(JSON.stringify(input.ticket));
 
-  // 2. Jetty grades it server-side, with a grader that isn't the author —
-  //    upload, run the grader, read the grade, and label, in one call.
-  const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
-    files: [{ filename: "case.json", data: draft.text }],
-    useTrialKeys: true,                          // grade on Jetty's free trial, no provider key
-    labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
-  });
+    // 2. Jetty grades it server-side, with a grader that isn't the author —
+    //    upload, run the grader, read the grade, and label, in one call.
+    const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
+      files: [{ filename: "case.json", data: draft.text }],
+      useTrialKeys: true,                          // grade on Jetty's free trial, no provider key
+      labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
+    });
 
-  return { grade, gradeTrajectoryId: trajectoryId };
-}
+    return { grade, gradeTrajectoryId: trajectoryId };
+  },
+});
 ```
 
 Each grade is a Jetty trajectory: the inputs, outputs, score, and cost, ready to
@@ -109,7 +114,7 @@ all.
 
 - `npm run demo` prints the verdict table and opens a styled `report.html`. No keys.
 - `npm run deploy-grader` creates the grading runbook in your collection.
-- `npx flue run eval --target node --payload '{"tickets":2}'` prints per-run
+- `npx flue run eval --target node --input '{"tickets":2}'` prints per-run
   scores and the verdict, opens `report.html`, and writes a labelled trajectory
   you can open at `https://flows.jetty.io/<collection>/triage-grader`.
 

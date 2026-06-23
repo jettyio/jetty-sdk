@@ -12,10 +12,11 @@
   },
   "dependencies": {
     "@jetty/sdk": "*",
-    "@flue/runtime": "1.0.0-beta.2"
+    "@flue/runtime": "1.0.0-beta.3",
+    "valibot": "^1.1.0"
   },
   "devDependencies": {
-    "@flue/cli": "1.0.0-beta.1",
+    "@flue/cli": "1.0.0-beta.3",
     "@types/node": "^22.15.3",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3"

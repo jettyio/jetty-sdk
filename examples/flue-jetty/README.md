@@ -55,7 +55,7 @@ cp .env.example .env && set -a && . ./.env && set +a   # ANTHROPIC + Jetty creds
 npm run deploy-grader
 
 # 2. A/B-eval the agent. Each ticket is a real server-side grade, so start small.
-npx flue run eval --target node --payload '{"tickets":2}'
+npx flue run eval --target node --input '{"tickets":2}'
 ```
 
 You'll see a `config · ticket: score PASS/fail` line per run, the verdict table,
