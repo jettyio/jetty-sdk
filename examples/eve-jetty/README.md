@@ -93,6 +93,49 @@ eve agent still needs a model credential: an AI Gateway key, or set `OPENROUTER_
 so `agent/agent.ts` routes it through OpenRouter directly. The offline `npm run demo`
 needs none.
 
+## Part 2: the live online experiment (watch Jetty grade as you type)
+
+The A/B above is a *controlled batch* — it runs both configs over the same tickets and
+grades each inline. The other way teams actually run an experiment is **online**: one
+agent randomizes its own behaviour per request, every run is logged, and grading happens
+**out of band** so it never sits in the request path. This example ships that shape too,
+and it's built to demo live.
+
+```bash
+cp .env.example .env && set -a && . ./.env && set +a
+npm run deploy-grader            # once — the same independent grader as Part 1
+
+# then three terminals:
+npx eve dev                      # 1. the agent — randomizes warm/terse per turn
+npm run grade-watch              # 2. the out-of-band grader
+npm run board                    # 3. the live scoreboard → http://localhost:4500
+```
+
+Type a support ticket into the `eve dev` chat. What happens:
+
+1. **The agent picks an arm.** A per-turn dynamic-instructions resolver
+   (`agent/instructions/arm.ts`) randomly assigns `warm` or `terse` and applies it to
+   that reply — server-side, so *any* turn you type is A/B'd, not just scripted ones.
+2. **The run lands in Jetty immediately**, via a hook (`agent/hooks/ingest.ts`) that
+   ingests the finished turn as a trajectory tagged `eval.config=warm|terse`, still
+   ungraded.
+3. **The grader scores it a beat later.** `grade-watch` finds ungraded runs, scores each
+   with the *independent* Jetty grader, and writes `eval.grade` / `eval.pass` back onto
+   the run — decoupled from the chat, so the agent never waits on grading.
+4. **The board lights up.** Each run appears as a row that flips from "grading…" to a
+   green pass or red fail, and the warm-vs-terse pass-rates diverge in front of the room.
+
+No one to type for you? `npm run feed` sends the sample tickets in as if typed.
+
+> **Why a separate board?** The real Jetty UI is a durable store, not a live ticker — its
+> run list polls slowly and doesn't surface labels inline, so grades wouldn't visibly
+> "light up." `npm run board` is a 2-second-poll view built for the demo; the
+> trajectories it reads are the same durable records you can query later.
+
+> **Part 1 vs Part 2.** Part 1 is the clean, repeatable regression check (paired,
+> deterministic). Part 2 is the production-shaped online experiment (randomized, graded
+> async). Same agent, same independent grader — a different question.
+
 ## Why Jetty here
 
 The agent writes the reply. **Jetty is the judge and the memory.** ([Why a check beats a
@@ -163,7 +206,12 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `evals/evals.config.ts` | Wires the native `Jetty()` reporter into `eve eval`. |
 | `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
 | `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
-| `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty. |
+| `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty (Part 1). |
+| `agent/instructions/arm.ts` | Part 2 — per-turn warm/terse arm selection for live `eve dev` (dynamic instructions). |
+| `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory. |
+| `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
+| `src/live-board.ts` | Part 2 — `npm run board`, the live scoreboard that lights up as grades land. |
+| `src/feed.ts` | Part 2 — `npm run feed`, sends the sample tickets into `eve dev` (rehearsal). |
 | `src/cost.ts` | Estimates per-run cost from eve token usage (eve has no cost field). |
 | `src/eval.ts` | `aggregate()` + `renderVerdict()`: the scoring and the table. |
 | `src/simulate.ts` + `src/demo-offline.ts` | `npm run demo`, the no-keys verdict table. |
