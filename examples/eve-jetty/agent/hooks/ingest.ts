@@ -18,7 +18,12 @@
  */
 import { defineHook } from "eve/hooks";
 import { JettyClient } from "@jetty/sdk";
-import { armForTurn } from "../instructions/arm.js";
+
+// Shared with agent/instructions/arm.ts via globalThis: eve may load the resolver
+// and this hook as separate bundles, so a plain `import` isn't guaranteed to be the
+// same Map. The global key is the single source of truth for which arm each turn ran.
+const armForTurn = ((globalThis as Record<string, unknown>).__eveJettyArmForTurn ??=
+  new Map<string, string>()) as Map<string, string>;
 
 const COLLECTION = process.env.JETTY_COLLECTION ?? "";
 const AGENT_TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
@@ -107,9 +112,13 @@ export default defineHook({
       };
       const cost = (t.inTok / 1e6) * price.in + (t.outTok / 1e6) * price.out;
 
+      // eve's turnId is per-session (turn_0, turn_1, …), so key on session+turn — else
+      // separate chat sessions all collide on "turn_0" and overwrite each other. Same
+      // (session, turn) still maps to one id, so a re-push of that turn overwrites in place.
+      const trajId = `${ctx.session.id}-${turnId}`;
       try {
         const { trajectory_id } = await client.ingestTrajectory(COLLECTION, AGENT_TASK, {
-          trajectory_id: turnId, // idempotent: a re-push of the same turn overwrites in place
+          trajectory_id: trajId,
           input: ticket,
           output: triage,
           status: "completed",

@@ -30,8 +30,17 @@ const ARM_STYLE: Record<Arm, string> = {
     "or detail, do not personalize.",
 };
 
-/** turnId → arm, shared with the ingest hook (same `eve dev` process). */
-export const armForTurn = new Map<string, Arm>();
+/**
+ * turnId → arm, shared with the ingest hook. Stored on `globalThis` (not a plain
+ * module export) because eve loads each authored module as its own bundle, so a
+ * normal `import` would hand the hook a DIFFERENT Map instance than the resolver
+ * writes to — and the arm would never reach the ingested trajectory. The global
+ * key is the single source of truth both files reach.
+ */
+const ARM_MAP_KEY = "__eveJettyArmForTurn";
+const g = globalThis as Record<string, unknown>;
+export const armForTurn: Map<string, Arm> =
+  (g[ARM_MAP_KEY] as Map<string, Arm> | undefined) ?? ((g[ARM_MAP_KEY] = new Map<string, Arm>()) as Map<string, Arm>);
 
 const pickArm = (): Arm => (Math.random() < 0.5 ? "warm" : "terse");
 
