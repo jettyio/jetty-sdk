@@ -172,6 +172,52 @@ for (const t of list.trajectories) {
 
 ---
 
+## 8. Part 2 — the live online experiment (watch Jetty grade as you type)
+
+Steps 1–7 are a *controlled batch*: the harness runs both configs over the same tickets and
+grades each inline. Part 2 is the **online** shape teams actually ship — one agent
+randomizes its own behaviour per request, every run is logged, and grading happens **out of
+band**. It's built to demo live: you type, Jetty lights up.
+
+You need the same creds as Step 4 and the grader from Step 5. Then open three terminals:
+
+```bash
+npx eve dev            # terminal 1 — the agent (Node 24+)
+npm run grade-watch    # terminal 2 — the out-of-band grader
+npm run board          # terminal 3 — the scoreboard, then open http://localhost:4500
+```
+
+Type a support request into the `eve dev` chat (e.g. "my password reset email never
+arrives"). Within a second a row appears on the board tagged `warm` or `terse` and marked
+"grading…"; a beat later it flips to a green pass or red fail. Type a few and the
+warm-vs-terse pass-rates pull apart.
+
+What each piece does:
+
+- **`agent/instructions/arm.ts`** — a dynamic-instructions resolver that fires on
+  `turn.started` (server-side, once per turn) and randomly applies the warm or terse style.
+  Because it lives in the agent, *every* turn you type is A/B'd, not just scripted ones.
+- **`agent/hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
+  finished turn (the triage JSON + token usage), and calls `ingestTrajectory` to record it
+  in Jetty as an **ungraded** trajectory tagged `eval.config`.
+- **`src/grade-watcher.ts`** (`npm run grade-watch`) — polls for ungraded runs, scores each
+  with the **independent** `triage-grader`, and writes `eval.grade` / `eval.pass` back onto
+  the run with `addLabel`. Grading never blocks the chat.
+- **`src/live-board.ts`** (`npm run board`) — a 2-second-poll board that renders the runs
+  and their grade labels, so the scoreboard updates as grades land.
+
+No one to type for you (or just rehearsing)? `npm run feed` sends the sample tickets into
+`eve dev` as if typed.
+
+> **Why a separate board, not the Jetty UI?** The Jetty UI is durable storage, not a live
+> ticker — its run list polls slowly and doesn't surface labels inline. The board is a thin
+> demo view over the same trajectories you can query with `listTrajectories` later.
+
+> **Reliability tip for a live demo.** Each grade spins up a sandbox, so run
+> `npm run deploy-grader` ahead of time and send one warm-up ticket before you present.
+
+---
+
 ## How it works (the pieces)
 
 | File | Role |
@@ -184,9 +230,15 @@ for (const t of list.trajectories) {
 | [`src/cost.ts`](src/cost.ts) | Estimates per-run cost from eve token usage (eve has no dollar-cost field). |
 | [`src/eval.ts`](src/eval.ts) | `aggregate()` (pass-rate/grade/cost) + `renderVerdict()` (the table). |
 | [`grader/RUNBOOK.md`](grader/RUNBOOK.md) | The independent grader: a deterministic Python rubric. |
+| [`agent/instructions/arm.ts`](agent/instructions/arm.ts) | **Part 2** — per-turn warm/terse arm selection for live `eve dev`. |
+| [`agent/hooks/ingest.ts`](agent/hooks/ingest.ts) | **Part 2** — ingests each `eve dev` turn into Jetty as a trajectory. |
+| [`src/grade-watcher.ts`](src/grade-watcher.ts) | **Part 2** — the out-of-band grader (`npm run grade-watch`). |
+| [`src/live-board.ts`](src/live-board.ts) | **Part 2** — the live scoreboard (`npm run board`). |
+| [`src/feed.ts`](src/feed.ts) | **Part 2** — sends sample tickets into `eve dev` (`npm run feed`). |
 
 The SDK does the orchestration: `runWithFiles`/`runAndWait` (with file upload),
-`getTrajectory`, `downloadFile`, `addLabel`, `createTask`. That's the part worth copying.
+`getTrajectory`, `downloadFile`, `addLabel`, `createTask` — plus `ingestTrajectory` and
+`listTrajectories` for the Part 2 live experiment. That's the part worth copying.
 
 ## Why eve *and* Jetty?
 
@@ -235,7 +287,7 @@ loop), Jetty drops in as the eval layer. Copy the orchestration from
 - **The live run is slow.** Each grade spins up a sandbox (a few minutes for 2 tickets).
   That's expected; the offline demo (`npm run demo`) is the fast path.
 
-> **Note on scope:** Jetty has no external trajectory-ingestion endpoint yet, so grading
-> runs *through* a Jetty task (which is what creates the trajectory) rather than pushing an
-> externally-produced trace. That endpoint is also the unlock for the native `Jetty()` eve
-> eval reporter.
+> **Note on the two integrations.** Part 1 grades *through* a Jetty task — the task run is
+> what creates the trajectory. Part 2 instead *pushes* each finished eve turn straight in
+> with `ingestTrajectory` (`POST /api/v1/trajectories/{collection}/{name}/ingest`), the same
+> endpoint behind the native `Jetty()` eve eval reporter.

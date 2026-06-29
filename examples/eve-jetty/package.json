@@ -8,6 +8,9 @@
     "demo": "tsx src/demo-offline.ts",
     "deploy-grader": "tsx src/deploy-grader.ts",
     "ab-eval": "tsx src/ab-eval.ts",
+    "grade-watch": "tsx src/grade-watcher.ts",
+    "board": "tsx src/live-board.ts",
+    "feed": "tsx src/feed.ts",
     "dev": "eve dev",
     "eval": "eve eval",
     "typecheck": "tsc --noEmit"
