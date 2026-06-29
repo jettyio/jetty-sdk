@@ -29,6 +29,10 @@ const COLLECTION = process.env.JETTY_COLLECTION ?? "";
 const AGENT_TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
 const AUTHOR = process.env.JETTY_AUTHOR ?? "eve-dev@acme.example";
 const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-4.6";
+// "ingest" (default): write a finished trajectory; the out-of-band grade-watcher scores it.
+// "simple_judge": run the native Jetty simple_judge task on triage-live and label its score
+// here — no grade-watcher, no sandbox. Both end with the same eval.* labels on the run.
+const JUDGE_MODE = process.env.JUDGE_MODE ?? "ingest";
 
 // Illustrative $/1M tokens (mirrors src/cost.ts). Tune to your real rates.
 const PRICES: Record<string, { in: number; out: number }> = {
@@ -81,6 +85,54 @@ function extractTriage(text: string): { category?: string; priority?: number; dr
   }
 }
 
+interface Triage {
+  category?: string;
+  priority?: number;
+  draft_reply?: string;
+}
+
+/**
+ * JUDGE_MODE="simple_judge": run the native Jetty `simple_judge` task on triage-live
+ * for this turn (one LLM call, no sandbox), then promote its score — a step output —
+ * to `eval.*` labels so the board and spot's Labels panel show it unchanged. Replaces
+ * the out-of-band grade-watcher: grading happens inside the Jetty run.
+ */
+async function runJudge(
+  client: JettyClient,
+  ticket: { subject: string; body: string },
+  triage: Triage,
+  arm: string,
+  cost: number,
+): Promise<void> {
+  const item =
+    `TICKET:\n${ticket.subject}\n${ticket.body}\n\n` +
+    `TRIAGE RESPONSE:\ncategory: ${triage.category ?? ""}\n` +
+    `priority: ${triage.priority ?? ""}\ndraft_reply: ${triage.draft_reply ?? ""}`;
+
+  // runAndWait returns the completed judge trajectory; the chat reply already streamed,
+  // so this only delays the turn's idle event by the (sandbox-free) judge call.
+  const traj = await client.runAndWait(
+    COLLECTION,
+    AGENT_TASK,
+    { item, input: ticket },
+    { pollMs: 2000, timeoutMs: 120_000 },
+  );
+
+  const out = (traj.steps?.judge?.outputs ?? {}) as Record<string, unknown>;
+  const results = out.results as Array<{ score?: number }> | undefined;
+  const score = Number(out.average_score ?? results?.[0]?.score);
+  const ok = Number.isFinite(score);
+  const pass = ok && score >= 4.0; // keep the 4.0 bar (simple_judge has no pass field)
+  const id = traj.trajectory_id;
+
+  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.config", arm, AUTHOR);
+  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.grade", ok ? score.toFixed(2) : "n/a", AUTHOR);
+  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.pass", String(pass), AUTHOR);
+  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.source", "eve-dev", AUTHOR);
+  await client.addLabel(COLLECTION, AGENT_TASK, id, "cost_est_usd", cost.toFixed(6), AUTHOR);
+  console.log(`[ingest-hook] ${arm} turn → judged ${id}: ${ok ? score.toFixed(1) : "?"} ${pass ? "PASS" : "fail"}`);
+}
+
 export default defineHook({
   events: {
     "message.received"(event) {
@@ -111,28 +163,32 @@ export default defineHook({
         tier: "unknown",
       };
       const cost = (t.inTok / 1e6) * price.in + (t.outTok / 1e6) * price.out;
+      const armName = arm ?? "unknown";
 
-      // eve's turnId is per-session (turn_0, turn_1, …), so key on session+turn — else
-      // separate chat sessions all collide on "turn_0" and overwrite each other. Same
-      // (session, turn) still maps to one id, so a re-push of that turn overwrites in place.
-      const trajId = `${ctx.session.id}-${turnId}`;
       try {
-        const { trajectory_id } = await client.ingestTrajectory(COLLECTION, AGENT_TASK, {
-          trajectory_id: trajId,
-          input: ticket,
-          output: triage,
-          status: "completed",
-          source: "eve-dev",
-          author: AUTHOR,
-          cost_usd: cost,
-          labels: { "eval.config": arm ?? "unknown", "eval.source": "eve-dev" },
-          metadata: { sessionId: ctx.session.id, turnId, arm: arm ?? "unknown" },
-        });
-        console.log(
-          `[ingest-hook] ${arm ?? "?"} turn → ${COLLECTION}/${AGENT_TASK} (${trajectory_id}) — ungraded`,
-        );
+        if (JUDGE_MODE === "simple_judge") {
+          await runJudge(client, ticket, triage, armName, cost);
+        } else {
+          // eve's turnId is per-session (turn_0, turn_1, …), so key on session+turn — else
+          // separate chat sessions all collide on "turn_0" and overwrite each other.
+          const trajId = `${ctx.session.id}-${turnId}`;
+          const { trajectory_id } = await client.ingestTrajectory(COLLECTION, AGENT_TASK, {
+            trajectory_id: trajId,
+            input: ticket,
+            output: triage,
+            status: "completed",
+            source: "eve-dev",
+            author: AUTHOR,
+            cost_usd: cost,
+            labels: { "eval.config": armName, "eval.source": "eve-dev" },
+            metadata: { sessionId: ctx.session.id, turnId, arm: armName },
+          });
+          console.log(
+            `[ingest-hook] ${armName} turn → ${COLLECTION}/${AGENT_TASK} (${trajectory_id}) — ungraded`,
+          );
+        }
       } catch (err) {
-        console.warn(`[ingest-hook] ingest failed (chat unaffected): ${msg(err)}`);
+        console.warn(`[ingest-hook] ${JUDGE_MODE} failed (chat unaffected): ${msg(err)}`);
       }
     },
   },

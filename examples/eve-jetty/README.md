@@ -136,6 +136,24 @@ No one to type for you? `npm run feed` sends the sample tickets in as if typed.
 > deterministic). Part 2 is the production-shaped online experiment (randomized, graded
 > async). Same agent, same independent grader — a different question.
 
+### Part 2b: grade with a native `simple_judge` (no grade-watcher)
+
+Don't want to run a watcher or a sandbox? Set **`JUDGE_MODE=simple_judge`** and `triage-live`
+becomes a real Jetty task whose workflow is a single **`simple_judge`** step (LLM-as-judge).
+The eve hook runs it per turn and labels the score itself — so you drop `grade-watch` entirely.
+
+```bash
+npm run deploy-judge                    # make triage-live a simple_judge task (once)
+JUDGE_MODE=simple_judge npx eve dev     # terminal 1
+npm run board                           # terminal 2 — that's it, no grade-watch
+```
+
+Same labels (`eval.config` / `eval.grade` / `eval.pass` / `cost_est_usd`) and the same board;
+the grade is now produced by a native Jetty step (no sandbox) and each run also carries a
+written `explanation`. Edit the rubric in plain English in `src/deploy-judge.ts` and redeploy.
+Trade-off: it's an LLM judge, not the deterministic Python rubric — more flexible, less
+reproducible.
+
 ## Why Jetty here
 
 The agent writes the reply. **Jetty is the judge and the memory.** ([Why a check beats a
@@ -210,6 +228,7 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `agent/instructions/arm.ts` | Part 2 — per-turn warm/terse arm selection for live `eve dev` (dynamic instructions). |
 | `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory. |
 | `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
+| `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task (`JUDGE_MODE=simple_judge`, no grade-watcher). |
 | `src/live-board.ts` | Part 2 — `npm run board`, the live scoreboard that lights up as grades land. |
 | `src/feed.ts` | Part 2 — `npm run feed`, sends the sample tickets into `eve dev` (rehearsal). |
 | `src/cost.ts` | Estimates per-run cost from eve token usage (eve has no cost field). |

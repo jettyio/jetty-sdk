@@ -77,7 +77,7 @@ Edit `.env`:
 ```ini
 AI_GATEWAY_API_KEY=...                 # or VERCEL_OIDC_TOKEN, or OPENROUTER_API_KEY
 JETTY_API_TOKEN=mlc_...                # your Jetty token
-JETTY_COLLECTION=your-collection       # a collection your token can write to
+JETTY_COLLECTION=jetty-vercel-demo     # the demo collection (or your own, if your token can write to it)
 JETTY_GRADE_TASK=triage-grader         # leave as-is
 EVE_URL=http://127.0.0.1:2000          # where `npx eve dev` serves the agent
 ```
@@ -216,6 +216,12 @@ No one to type for you (or just rehearsing)? `npm run feed` sends the sample tic
 > **Reliability tip for a live demo.** Each grade spins up a sandbox, so run
 > `npm run deploy-grader` ahead of time and send one warm-up ticket before you present.
 
+> **Part 2b — skip the watcher with `simple_judge`.** Run `npm run deploy-judge` once, then
+> start eve with `JUDGE_MODE=simple_judge npx eve dev`. Now `triage-live` is a native Jetty
+> `simple_judge` task: the hook runs it per turn and labels the score itself, so you don't run
+> `grade-watch` at all (and there's no sandbox). Same board, same labels, plus a written
+> `explanation` per run; the rubric lives in `src/deploy-judge.ts`.
+
 ---
 
 ## How it works (the pieces)
@@ -233,6 +239,7 @@ No one to type for you (or just rehearsing)? `npm run feed` sends the sample tic
 | [`agent/instructions/arm.ts`](agent/instructions/arm.ts) | **Part 2** — per-turn warm/terse arm selection for live `eve dev`. |
 | [`agent/hooks/ingest.ts`](agent/hooks/ingest.ts) | **Part 2** — ingests each `eve dev` turn into Jetty as a trajectory. |
 | [`src/grade-watcher.ts`](src/grade-watcher.ts) | **Part 2** — the out-of-band grader (`npm run grade-watch`). |
+| [`src/deploy-judge.ts`](src/deploy-judge.ts) | **Part 2b** — makes `triage-live` a native `simple_judge` task (`npm run deploy-judge`). |
 | [`src/live-board.ts`](src/live-board.ts) | **Part 2** — the live scoreboard (`npm run board`). |
 | [`src/feed.ts`](src/feed.ts) | **Part 2** — sends sample tickets into `eve dev` (`npm run feed`). |
 

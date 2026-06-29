@@ -9,6 +9,7 @@
     "deploy-grader": "tsx src/deploy-grader.ts",
     "ab-eval": "tsx src/ab-eval.ts",
     "grade-watch": "tsx src/grade-watcher.ts",
+    "deploy-judge": "tsx src/deploy-judge.ts",
     "board": "tsx src/live-board.ts",
     "feed": "tsx src/feed.ts",
     "dev": "eve dev",

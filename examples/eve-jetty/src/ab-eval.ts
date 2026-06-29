@@ -31,7 +31,7 @@ interface Grade {
 }
 
 async function main(): Promise<void> {
-  const collection = process.env.JETTY_COLLECTION ?? "jontesteroni11";
+  const collection = process.env.JETTY_COLLECTION ?? "jetty-vercel-demo";
   const gradeTask = process.env.JETTY_GRADE_TASK ?? "triage-grader";
   const author = process.env.JETTY_AUTHOR ?? "eve@acme.example";
   const useTrialKeys = process.env.JETTY_USE_TRIAL_KEYS === "true";
