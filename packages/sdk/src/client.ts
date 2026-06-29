@@ -9,6 +9,8 @@ import { HttpClient, type FetchLike } from "./http.js";
 import { parseWorkflowId } from "./poll.js";
 import type {
   Collection,
+  IngestTrajectoryPayload,
+  IngestTrajectoryResult,
   JettyFile,
   RunAndWaitOptions,
   RunOptions,
@@ -324,6 +326,30 @@ export class JettyClient {
 
   getStats(collection: string, task: string): Promise<unknown> {
     return this.http.request(`/api/v1/db/stats/${this.seg(collection)}/${this.seg(task)}`);
+  }
+
+  /**
+   * Ingest a finished, externally-produced eval run as a durable trajectory —
+   * no workflow execution. This is the seam an external eval reporter (e.g. the
+   * eve `Jetty()` reporter) uses to record a graded run in Jetty: `scores` land
+   * as `score.<name>` labels and `cost_usd` as a `cost_est_usd` label. Supply
+   * `payload.trajectory_id` for an idempotent re-push (overwrites in place).
+   *
+   * Pairs with mise `POST /api/v1/trajectories/{collection}/{name}/ingest`.
+   */
+  ingestTrajectory(
+    collection: string,
+    task: string,
+    payload: IngestTrajectoryPayload,
+  ): Promise<IngestTrajectoryResult> {
+    return this.http.request(
+      `/api/v1/trajectories/${this.seg(collection)}/${this.seg(task)}/ingest`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------

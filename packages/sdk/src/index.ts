@@ -49,6 +49,8 @@ export {
   type Label,
   type TrajectoryAttribute,
   type InitParams,
+  type IngestTrajectoryPayload,
+  type IngestTrajectoryResult,
   type WorkflowResponse,
   type RunOptions,
   type RunAndWaitOptions,

@@ -178,3 +178,52 @@ describe("multipart + labels + download", () => {
     expect(res.filename).toBe("out.bin");
   });
 });
+
+describe("ingestTrajectory", () => {
+  it("POSTs the eval run to the ingest endpoint and returns the result", async () => {
+    let captured: { url: string; method?: string; body?: string } = { url: "" };
+    const result = await client(async (url, init) => {
+      captured = { url, method: init?.method, body: init?.body as string };
+      return json({
+        trajectory_id: "tr123",
+        name: "acme/triage-grader",
+        storage_path: "acme/triage-grader/0000",
+        status: "completed",
+        labels: [{ key: "score.accuracy", value: "0.9", created: "t", author: "eve" }],
+      });
+    }).ingestTrajectory("acme", "triage-grader", {
+      input: { ticket: "printer down" },
+      output: { category: "hardware" },
+      scores: { accuracy: 0.9 },
+      labels: { "eve.verdict": "passed" },
+      cost_usd: 0.0093,
+      source: "eve",
+      trajectory_id: "tr123",
+    });
+
+    expect(captured.url).toContain("/api/v1/trajectories/acme/triage-grader/ingest");
+    expect(captured.method).toBe("POST");
+    const body = JSON.parse(captured.body ?? "{}");
+    expect(body.scores.accuracy).toBe(0.9);
+    expect(body.source).toBe("eve");
+    expect(body.trajectory_id).toBe("tr123");
+    expect(result.trajectory_id).toBe("tr123");
+    expect(result.labels[0]?.key).toBe("score.accuracy");
+  });
+
+  it("url-encodes collection and task segments", async () => {
+    let url = "";
+    await client(async (u) => {
+      url = u;
+      return json({
+        trajectory_id: "t",
+        name: "a/b",
+        storage_path: "a/b/0000",
+        status: "completed",
+        labels: [],
+      });
+    }).ingestTrajectory("my collection", "triage/grader", { output: "x" });
+
+    expect(url).toContain("/trajectories/my%20collection/triage%2Fgrader/ingest");
+  });
+});

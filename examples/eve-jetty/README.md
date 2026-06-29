@@ -41,9 +41,14 @@ run your scripted sessions, they gate a deploy. Jetty sits beside them:
   versions, models, and many agents, long after the CI job ended.
 
 Keep `eve eval` for "did this commit break a rule." Add Jetty for "which of these two
-versions is better, and is it improving." The native
-[`Jetty()` eval reporter](#native-reporter-coming-next) is the tighter, in-`eve eval`
-integration; it's described below.
+versions is better, and is it improving." There are two ways to wire it in, both
+OpenTelemetry-free:
+
+1. **The native [`Jetty()` eval reporter](#native-jetty-reporter)** — drops into
+   `evals.config.ts` where eve's `Braintrust(...)` goes; every `eve eval` result lands in
+   Jetty as a durable trajectory.
+2. **The [external A/B harness](#run-it-for-real)** (`src/ab-eval.ts`) — drives the agent
+   over `eve/client` and grades each run with an independent Jetty rubric.
 
 ## See it now (offline, no keys)
 
@@ -107,29 +112,44 @@ dashboard](https://blog.jetty.io).)
 > cost from tokens and a small per-model price table (`src/cost.ts`) and labels it
 > `eval.cost_est_usd`. Tune the prices to your real rates.
 
-> **Today's limit:** Jetty has no external trajectory-ingestion endpoint yet, so this
-> grades through a Jetty task (which creates the trajectory) rather than pushing an
-> externally-produced trace. That ingestion endpoint is a later project in the SDK
-> initiative, and the unlock for the native eve reporter below.
+> **Two complementary integrations.** The A/B harness above grades through a Jetty task
+> (Jetty *runs* the rubric, which creates the trajectory) — Jetty as the independent
+> *grader*. The native reporter below instead *pushes* eve's own finished eval results
+> into Jetty via the trajectory-ingestion endpoint — Jetty as the durable *scoreboard*.
+> Use either or both.
 
-## Native reporter (coming next)
+## Native `Jetty()` reporter
 
 The most eve-idiomatic integration is a **`Jetty()` eval reporter** that drops into
 `evals.config.ts` exactly where eve's built-in `Braintrust(...)` reporter goes, so every
-`eve eval` result lands in Jetty as a durable, labelled trajectory:
+`eve eval` result lands in Jetty as a durable, labelled trajectory. This example ships it
+in [`src/jetty-reporter.ts`](src/jetty-reporter.ts) (it implements eve's `EvalReporter`):
 
 ```ts
-// evals/evals.config.ts (Phase 2)
+// evals/evals.config.ts
 import { defineEvalConfig } from "eve/evals";
-import { Jetty } from "@jetty/eve";      // implements eve's EvalReporter
+import { Jetty } from "../src/jetty-reporter.js";   // implements eve's EvalReporter
 
 export default defineEvalConfig({
-  reporters: [Jetty({ collection: "acme", project: "triage-agent" })],
+  reporters: [Jetty()],   // collection/project from JETTY_COLLECTION / JETTY_PROJECT
 });
 ```
 
-That ships once the trajectory-ingestion endpoint lands. The A/B harness in this example
-(`src/ab-eval.ts`) works **today** and needs no eve or backend changes.
+Run it:
+
+```bash
+npx eve dev                                               # terminal A: serve the agent
+JETTY_COLLECTION=acme JETTY_PROJECT=triage-agent npx eve eval   # terminal B
+```
+
+Each result is pushed with one `ingestTrajectory` call (`scores` → `score.<name>` labels,
+verdict + status as labels). Point at a local mise with `JETTY_API_URL=http://localhost:8000`.
+The reporter never fails a run: if Jetty is unreachable it logs a warning and `eve eval`
+continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to commit.
+
+> Needs the mise trajectory-ingestion endpoint
+> (`POST /api/v1/trajectories/{collection}/{name}/ingest`). It graduates into a standalone
+> `@jetty/eve` package later; here it lives in the example so you can read and run it.
 
 ## Files
 
@@ -140,6 +160,9 @@ That ships once the trajectory-ingestion endpoint lands. The A/B harness in this
 | `agent/channels/eve.ts` | The HTTP channel the harness drives (auth config). |
 | `src/tickets.ts` | The eval cases plus the two agent configs (warm vs terse). |
 | `src/agent-prompt.ts` | Builds the per-config message and parses the triage JSON back out. |
+| `evals/evals.config.ts` | Wires the native `Jetty()` reporter into `eve eval`. |
+| `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
+| `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
 | `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty. |
 | `src/cost.ts` | Estimates per-run cost from eve token usage (eve has no cost field). |
 | `src/eval.ts` | `aggregate()` + `renderVerdict()`: the scoring and the table. |

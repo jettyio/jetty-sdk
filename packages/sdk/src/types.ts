@@ -142,6 +142,49 @@ export interface TrajectoryListResponse {
   [key: string]: unknown;
 }
 
+/**
+ * A finished, externally-produced eval run to persist via
+ * {@link JettyClient.ingestTrajectory} — no workflow execution. Mirrors mise's
+ * `IngestTrajectoryRequest` (`POST /api/v1/trajectories/{collection}/{name}/ingest`).
+ */
+export interface IngestTrajectoryPayload {
+  /** The eval input / case the agent was run on. */
+  input?: unknown;
+  /** The output produced under test. */
+  output?: unknown;
+  /** Terminal status to record. Default `"completed"` server-side. */
+  status?: TrajectoryStatus | string;
+  /** Named scores; stored as `score.<name>` labels. */
+  scores?: Record<string, number>;
+  /** Arbitrary string labels, stored verbatim. */
+  labels?: Record<string, string>;
+  /** Estimated run cost; stored as a `cost_est_usd` label. */
+  cost_usd?: number;
+  /** Supply for an idempotent re-push; overwrites in place if it already exists. */
+  trajectory_id?: string;
+  /** Producer of the run, e.g. `"eve"`. Stored in `attributes.params`. */
+  source?: string;
+  /** External eval identifier. Stored in `attributes.params`. */
+  eval_id?: string;
+  /** Extra fields merged into `attributes.params`. */
+  metadata?: Record<string, unknown>;
+  /** Author recorded on the trajectory and labels. */
+  author?: string;
+  /** ISO start timestamp; defaults to now. */
+  created?: string;
+  /** ISO completion timestamp; defaults to now. */
+  completed?: string;
+}
+
+/** Result of {@link JettyClient.ingestTrajectory}. */
+export interface IngestTrajectoryResult {
+  trajectory_id: string;
+  name: string;
+  storage_path: string;
+  status: string;
+  labels: Label[];
+}
+
 /** Options for {@link JettyClient.runAndWait}. */
 export interface RunAndWaitOptions extends RunOptions {
   /** Poll interval in ms. Default 2000. */
