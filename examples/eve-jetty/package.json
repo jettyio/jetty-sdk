@@ -1,0 +1,28 @@
+{
+  "name": "eve-jetty",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A/B-eval an eve agent and catch a regression — eve runs it, Jetty grades it (@jetty/sdk)",
+  "scripts": {
+    "demo": "tsx src/demo-offline.ts",
+    "deploy-grader": "tsx src/deploy-grader.ts",
+    "ab-eval": "tsx src/ab-eval.ts",
+    "dev": "eve dev",
+    "eval": "eve eval",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.1",
+    "@jetty/sdk": "*",
+    "eve": "^0.16.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
