@@ -29,6 +29,10 @@ const COLLECTION = process.env.JETTY_COLLECTION ?? "";
 const AGENT_TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
 const AUTHOR = process.env.JETTY_AUTHOR ?? "eve-dev@acme.example";
 const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-4.6";
+// "ingest" (default): write a finished trajectory; the out-of-band grade-watcher scores it.
+// "simple_judge": run the native Jetty simple_judge task on triage-live and label its score
+// here — no grade-watcher, no sandbox. Both end with the same eval.* labels on the run.
+const JUDGE_MODE = process.env.JUDGE_MODE ?? "ingest";
 
 // Illustrative $/1M tokens (mirrors src/cost.ts). Tune to your real rates.
 const PRICES: Record<string, { in: number; out: number }> = {
@@ -81,6 +85,149 @@ function extractTriage(text: string): { category?: string; priority?: number; dr
   }
 }
 
+interface Triage {
+  category?: string;
+  priority?: number;
+  draft_reply?: string;
+}
+
+/** The judge's full verdict, parsed out of simple_judge's raw_result JSON. */
+interface JudgeVerdict {
+  score?: number;
+  explanation?: string;
+  dimensions?: Record<string, number>;
+  policy_violation?: boolean;
+}
+
+/** Parse the judge's raw_result (tolerates fences/prose around the JSON). */
+function parseVerdict(raw: unknown): JudgeVerdict {
+  if (typeof raw !== "string") return {};
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end < start) return {};
+  try {
+    return JSON.parse(raw.slice(start, end + 1)) as JudgeVerdict;
+  } catch {
+    return {};
+  }
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * addLabel with retry. A grade a human never sees is a grade that didn't happen —
+ * one dropped POST used to leave a judged run permanently unlabeled on the board,
+ * so each label gets three attempts with backoff before we give up and log.
+ */
+async function addLabelSafe(
+  client: JettyClient,
+  id: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await client.addLabel(COLLECTION, AGENT_TASK, id, key, value, AUTHOR);
+      return;
+    } catch (err) {
+      if (attempt === 3) {
+        console.warn(`[ingest-hook] label ${key}=${value} failed after 3 tries: ${msg(err)}`);
+        return;
+      }
+      await sleep(400 * attempt);
+    }
+  }
+}
+
+/**
+ * Write the labels, then verify they stuck and re-write any that didn't.
+ *
+ * Labels POSTed in the first moments after a run reaches `completed` can be lost
+ * server-side: mise's own final trajectory write races the label write and clobbers
+ * it (observed as runs missing exactly the FIRST label written, with a 200 on every
+ * POST — retries can't help because the client never sees a failure). So: settle,
+ * write, read back, repair.
+ */
+async function writeLabelsVerified(
+  client: JettyClient,
+  id: string,
+  labels: Array<[string, string]>,
+): Promise<void> {
+  await sleep(1500); // let the server's final trajectory write land first
+  for (const [k, v] of labels) await addLabelSafe(client, id, k, v);
+  await sleep(1200);
+  try {
+    const traj = await client.getTrajectory(COLLECTION, AGENT_TASK, id);
+    const present = new Set((traj.labels ?? []).map((l) => l.key));
+    const missing = labels.filter(([k]) => !present.has(k));
+    for (const [k, v] of missing) {
+      console.warn(`[ingest-hook] label ${k} lost server-side on ${id} — re-writing`);
+      await addLabelSafe(client, id, k, v);
+    }
+  } catch (err) {
+    console.warn(`[ingest-hook] label verify on ${id} skipped: ${msg(err)}`);
+  }
+}
+
+/**
+ * JUDGE_MODE="simple_judge": run the native Jetty `simple_judge` task on triage-live
+ * for this turn (one LLM call, no sandbox), then promote its score — a step output —
+ * to `eval.*` labels so the board and spot's Labels panel show it unchanged. Replaces
+ * the out-of-band grade-watcher: grading happens inside the Jetty run.
+ */
+async function runJudge(
+  client: JettyClient,
+  ticket: { subject: string; body: string },
+  triage: Triage,
+  arm: string,
+  cost: number,
+): Promise<void> {
+  const item =
+    `TICKET:\n${ticket.subject}\n${ticket.body}\n\n` +
+    `TRIAGE RESPONSE:\ncategory: ${triage.category ?? ""}\n` +
+    `priority: ${triage.priority ?? ""}\ndraft_reply: ${triage.draft_reply ?? ""}`;
+
+  // runAndWait returns the completed judge trajectory; the chat reply already streamed,
+  // so this only delays the turn's idle event by the (sandbox-free) judge call.
+  const traj = await client.runAndWait(
+    COLLECTION,
+    AGENT_TASK,
+    { item, input: ticket },
+    { pollMs: 2000, timeoutMs: 120_000 },
+  );
+
+  const out = (traj.steps?.judge?.outputs ?? {}) as Record<string, unknown>;
+  const results = out.results as Array<{ score?: number; raw_result?: string }> | undefined;
+  const score = Number(out.average_score ?? results?.[0]?.score);
+  const ok = Number.isFinite(score);
+  const verdict = parseVerdict(results?.[0]?.raw_result);
+  const violation = verdict.policy_violation === true;
+  // The 4.0 bar, plus a hard policy floor: a reply that overpromises never passes,
+  // however warm it reads. (The rubric already caps the score, but the floor makes
+  // the gate independent of the judge honouring that instruction.)
+  const pass = ok && score >= 4.0 && !violation;
+  const id = traj.trajectory_id;
+
+  const labels: Array<[string, string]> = [
+    ["eval.config", arm],
+    ["eval.grade", ok ? score.toFixed(2) : "n/a"],
+    ["eval.pass", String(pass)],
+    ["eval.source", "eve-dev"],
+    ["cost_est_usd", cost.toFixed(6)],
+  ];
+  for (const [dim, v] of Object.entries(verdict.dimensions ?? {})) {
+    if (Number.isFinite(Number(v))) labels.push([`eval.dim.${dim}`, Number(v).toFixed(1)]);
+  }
+  if (verdict.policy_violation != null) {
+    labels.push(["eval.policy_violation", String(violation)]);
+  }
+  await writeLabelsVerified(client, id, labels);
+  console.log(
+    `[ingest-hook] ${arm} turn → judged ${id}: ${ok ? score.toFixed(1) : "?"} ` +
+      `${pass ? "PASS" : "fail"}${violation ? " ⚠ policy" : ""}`,
+  );
+}
+
 export default defineHook({
   events: {
     "message.received"(event) {
@@ -111,28 +258,32 @@ export default defineHook({
         tier: "unknown",
       };
       const cost = (t.inTok / 1e6) * price.in + (t.outTok / 1e6) * price.out;
+      const armName = arm ?? "unknown";
 
-      // eve's turnId is per-session (turn_0, turn_1, …), so key on session+turn — else
-      // separate chat sessions all collide on "turn_0" and overwrite each other. Same
-      // (session, turn) still maps to one id, so a re-push of that turn overwrites in place.
-      const trajId = `${ctx.session.id}-${turnId}`;
       try {
-        const { trajectory_id } = await client.ingestTrajectory(COLLECTION, AGENT_TASK, {
-          trajectory_id: trajId,
-          input: ticket,
-          output: triage,
-          status: "completed",
-          source: "eve-dev",
-          author: AUTHOR,
-          cost_usd: cost,
-          labels: { "eval.config": arm ?? "unknown", "eval.source": "eve-dev" },
-          metadata: { sessionId: ctx.session.id, turnId, arm: arm ?? "unknown" },
-        });
-        console.log(
-          `[ingest-hook] ${arm ?? "?"} turn → ${COLLECTION}/${AGENT_TASK} (${trajectory_id}) — ungraded`,
-        );
+        if (JUDGE_MODE === "simple_judge") {
+          await runJudge(client, ticket, triage, armName, cost);
+        } else {
+          // eve's turnId is per-session (turn_0, turn_1, …), so key on session+turn — else
+          // separate chat sessions all collide on "turn_0" and overwrite each other.
+          const trajId = `${ctx.session.id}-${turnId}`;
+          const { trajectory_id } = await client.ingestTrajectory(COLLECTION, AGENT_TASK, {
+            trajectory_id: trajId,
+            input: ticket,
+            output: triage,
+            status: "completed",
+            source: "eve-dev",
+            author: AUTHOR,
+            cost_usd: cost,
+            labels: { "eval.config": armName, "eval.source": "eve-dev" },
+            metadata: { sessionId: ctx.session.id, turnId, arm: armName },
+          });
+          console.log(
+            `[ingest-hook] ${armName} turn → ${COLLECTION}/${AGENT_TASK} (${trajectory_id}) — ungraded`,
+          );
+        }
       } catch (err) {
-        console.warn(`[ingest-hook] ingest failed (chat unaffected): ${msg(err)}`);
+        console.warn(`[ingest-hook] ${JUDGE_MODE} failed (chat unaffected): ${msg(err)}`);
       }
     },
   },

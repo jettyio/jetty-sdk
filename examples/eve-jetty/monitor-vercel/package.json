@@ -1,0 +1,10 @@
+{
+  "name": "eve-jetty-monitor-vercel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Serverless (Vercel) build of the eve × Jetty conference dashboard — static page + one /api/runs function, zero dependencies.",
+  "engines": {
+    "node": ">=18"
+  }
+}

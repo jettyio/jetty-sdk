@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { JettyClient, JettyNotFoundError } from "@jetty/sdk";
 
-const COLLECTION = process.env.JETTY_COLLECTION ?? "jontesteroni11";
+const COLLECTION = process.env.JETTY_COLLECTION ?? "jetty-vercel-demo";
 const TASK = process.env.JETTY_GRADE_TASK ?? "triage-grader";
 
 const here = dirname(fileURLToPath(import.meta.url));

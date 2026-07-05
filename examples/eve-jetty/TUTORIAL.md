@@ -77,7 +77,7 @@ Edit `.env`:
 ```ini
 AI_GATEWAY_API_KEY=...                 # or VERCEL_OIDC_TOKEN, or OPENROUTER_API_KEY
 JETTY_API_TOKEN=mlc_...                # your Jetty token
-JETTY_COLLECTION=your-collection       # a collection your token can write to
+JETTY_COLLECTION=jetty-vercel-demo     # the demo collection (or your own, if your token can write to it)
 JETTY_GRADE_TASK=triage-grader         # leave as-is
 EVE_URL=http://127.0.0.1:2000          # where `npx eve dev` serves the agent
 ```
@@ -195,8 +195,11 @@ warm-vs-terse pass-rates pull apart.
 What each piece does:
 
 - **`agent/instructions/arm.ts`** — a dynamic-instructions resolver that fires on
-  `turn.started` (server-side, once per turn) and randomly applies the warm or terse style.
+  `turn.started` (server-side, once per turn) and applies the warm or terse style.
   Because it lives in the agent, *every* turn you type is A/B'd, not just scripted ones.
+  It's a **Thompson-sampling bandit rewarded by the live pass-rates read back from Jetty
+  labels**: 50/50 while each arm has fewer than `BANDIT_MIN_PER_ARM` judged runs, then
+  traffic shifts to the winning arm. `JETTY_BANDIT=off` restores the fair coin.
 - **`agent/hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
   finished turn (the triage JSON + token usage), and calls `ingestTrajectory` to record it
   in Jetty as an **ungraded** trajectory tagged `eval.config`.
@@ -207,7 +210,10 @@ What each piece does:
   and their grade labels, so the scoreboard updates as grades land.
 
 No one to type for you (or just rehearsing)? `npm run feed` sends the sample tickets into
-`eve dev` as if typed.
+`eve dev` as if typed (`FEED_ROUNDS=2` to loop them so the bandit converges). The rotation
+ends with a **policy-trap ticket** — a customer demanding the agent confirm a refund is
+already processed. When the warm arm capitulates, the judge flags `policy_violation` and
+fails the run despite a high empathy score: the independent-grader moment.
 
 > **Why a separate board, not the Jetty UI?** The Jetty UI is durable storage, not a live
 > ticker — its run list polls slowly and doesn't surface labels inline. The board is a thin
@@ -215,6 +221,20 @@ No one to type for you (or just rehearsing)? `npm run feed` sends the sample tic
 
 > **Reliability tip for a live demo.** Each grade spins up a sandbox, so run
 > `npm run deploy-grader` ahead of time and send one warm-up ticket before you present.
+
+> **Part 2b — skip the watcher with `simple_judge`.** Run `npm run deploy-judge` once, then
+> start eve with `JUDGE_MODE=simple_judge npx eve dev`. Now `triage-live` is a native Jetty
+> `simple_judge` task: the hook runs it per turn and labels the score itself, so you don't run
+> `grade-watch` at all (and there's no sandbox). Same board, same labels, plus a written
+> `explanation` per run and **per-dimension scores** (empathy / actionability / accuracy /
+> policy + a `policy_violation` flag) written back as `eval.dim.*` labels; the rubric lives in
+> `src/deploy-judge.ts`, and `npm run judge-smoke` sanity-checks it after a deploy.
+
+> **The conference monitor.** For a talk, use the sibling
+> [`jetty-live-monitor`](../../../jetty-live-monitor) instead of `npm run board`: dimension
+> bars per card, the bandit's traffic allocation shifting live, a SHIP/BLOCK release gate
+> (with an optional one-shot Slack alert when it blocks), a pass-rate/cost history strip, and
+> a deep link from every card into the Jetty UI.
 
 ---
 
@@ -233,6 +253,7 @@ No one to type for you (or just rehearsing)? `npm run feed` sends the sample tic
 | [`agent/instructions/arm.ts`](agent/instructions/arm.ts) | **Part 2** — per-turn warm/terse arm selection for live `eve dev`. |
 | [`agent/hooks/ingest.ts`](agent/hooks/ingest.ts) | **Part 2** — ingests each `eve dev` turn into Jetty as a trajectory. |
 | [`src/grade-watcher.ts`](src/grade-watcher.ts) | **Part 2** — the out-of-band grader (`npm run grade-watch`). |
+| [`src/deploy-judge.ts`](src/deploy-judge.ts) | **Part 2b** — makes `triage-live` a native `simple_judge` task (`npm run deploy-judge`). |
 | [`src/live-board.ts`](src/live-board.ts) | **Part 2** — the live scoreboard (`npm run board`). |
 | [`src/feed.ts`](src/feed.ts) | **Part 2** — sends sample tickets into `eve dev` (`npm run feed`). |
 
