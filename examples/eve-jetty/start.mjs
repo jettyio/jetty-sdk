@@ -81,7 +81,11 @@ const COLLECTION = process.env.JETTY_COLLECTION || "jetty-vercel-demo";
 const TASK = process.env.JETTY_AGENT_TASK || "triage-live";
 const EVE_URL = process.env.EVE_URL || "http://127.0.0.1:2000";
 const MONITOR_PORT = Number(process.env.MONITOR_PORT || process.env.PORT || 4600);
-const JUDGE_MODE = process.env.JUDGE_MODE || "ingest";
+// `npm start` deploys the judge below, so run the agent in simple_judge mode by default —
+// otherwise a fresh `cp .env.example .env` (JUDGE_MODE unset) makes the hook ingest each turn
+// UNGRADED and the board never shows a grade. An explicit JUDGE_MODE in .env/env still wins.
+process.env.JUDGE_MODE ??= "simple_judge";
+const JUDGE_MODE = process.env.JUDGE_MODE;
 const token = process.env.JETTY_API_TOKEN || "";
 const tokenBad = !token || /x{6,}/i.test(token); // missing or the mlc_xxxx… placeholder
 const modelCred =
@@ -117,6 +121,15 @@ if (!modelCred) {
       "  eve runs the agent on YOUR machine, so it needs one to draft replies.\n" +
         "  Jetty's trial keys only cover the server-side judge, not the local agent.\n",
     ),
+  );
+}
+if (JUDGE_MODE === "ingest") {
+  console.warn(
+    yellow("⚠ JUDGE_MODE=ingest") +
+      dim(
+        " — turns are ingested UNGRADED; this launcher doesn't run the grader,\n" +
+          "  so the board won't show grades. Run `npm run grade-watch` too, or use JUDGE_MODE=simple_judge.\n",
+      ),
   );
 }
 
