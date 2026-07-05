@@ -26,8 +26,10 @@ Every row is a Jetty [trajectory](https://docs.jetty.io), scored by a grader the
 didn't write and labelled with `config`, `grade`, and `cost`. The comparison is durable
 and queryable, not a number that scrolls off your terminal.
 
-> **Following along from a fresh checkout?** [`TUTORIAL.md`](TUTORIAL.md) walks through
-> every step (offline demo → creds → deploy grader → live A/B → inspect).
+> **Just want to see it live?** One command runs the whole thing — agent, judge, and the
+> real-time dashboard, off a single `.env`: **`npm start`**. See **[`DEMO.md`](DEMO.md)** to
+> get spun up with a Jetty token and a model key. (Or **[`TUTORIAL.md`](TUTORIAL.md)** for
+> the step-by-step from a fresh checkout: offline demo → creds → deploy grader → live A/B.)
 
 ## eve already has evals. Why add Jetty?
 
@@ -113,9 +115,13 @@ npm run board                    # 3. the live scoreboard → http://localhost:4
 
 Type a support ticket into the `eve dev` chat. What happens:
 
-1. **The agent picks an arm.** A per-turn dynamic-instructions resolver
-   (`agent/instructions/arm.ts`) randomly assigns `warm` or `terse` and applies it to
-   that reply — server-side, so *any* turn you type is A/B'd, not just scripted ones.
+1. **The agent picks an arm — and it's not a coin flip.** A per-turn dynamic-instructions
+   resolver (`agent/instructions/arm.ts`) runs a **Thompson-sampling bandit whose reward
+   signal is the live pass-rate read back from Jetty labels**. It explores 50/50 until each
+   arm has `BANDIT_MIN_PER_ARM` judged runs (matched to the monitor's release gate), then
+   routes traffic toward the winning arm. Grades steer the agent: Jetty isn't a scoreboard
+   here, it's the reward signal. (`JETTY_BANDIT=off` restores the fair coin for a
+   controlled experiment.)
 2. **The run lands in Jetty immediately**, via a hook (`agent/hooks/ingest.ts`) that
    ingests the finished turn as a trajectory tagged `eval.config=warm|terse`, still
    ungraded.
@@ -125,7 +131,13 @@ Type a support ticket into the `eve dev` chat. What happens:
 4. **The board lights up.** Each run appears as a row that flips from "grading…" to a
    green pass or red fail, and the warm-vs-terse pass-rates diverge in front of the room.
 
-No one to type for you? `npm run feed` sends the sample tickets in as if typed.
+No one to type for you? `npm run feed` sends the sample tickets in as if typed
+(`FEED_ROUNDS=2` to loop them and let the bandit converge on stage). The rotation
+includes a **policy-trap ticket** (`src/tickets.ts` → `TRAP_TICKETS`): a customer
+demanding "confirm my refund is processed RIGHT NOW." A warm agent that capitulates
+scores high on empathy and gets flagged `policy_violation` by the judge — the moment
+that shows why the grader must be independent: self-graded agents rubber-stamp exactly
+this.
 
 > **Why a separate board?** The real Jetty UI is a durable store, not a live ticker — its
 > run list polls slowly and doesn't surface labels inline, so grades wouldn't visibly
@@ -150,9 +162,39 @@ npm run board                           # terminal 2 — that's it, no grade-wat
 
 Same labels (`eval.config` / `eval.grade` / `eval.pass` / `cost_est_usd`) and the same board;
 the grade is now produced by a native Jetty step (no sandbox) and each run also carries a
-written `explanation`. Edit the rubric in plain English in `src/deploy-judge.ts` and redeploy.
+written `explanation`. The rubric is **multi-dimensional**: the judge returns per-dimension
+scores (`empathy` / `actionability` / `accuracy` / `policy`) plus a `policy_violation` flag,
+which the hook writes back as `eval.dim.*` / `eval.policy_violation` labels — a run that
+overpromises never passes, however warm it reads (a hard policy floor in the hook, on top of
+the rubric's score cap). Edit the rubric in plain English in `src/deploy-judge.ts`, redeploy,
+then `npm run judge-smoke` to sanity-check the verdict shape on a canned violating triage.
 Trade-off: it's an LLM judge, not the deterministic Python rubric — more flexible, less
 reproducible.
+
+### The demo arc (three terminals + the conference monitor)
+
+The conference monitor (`npm run monitor`, folded into this example at
+[`monitor/`](monitor/)) renders the whole story: per-dimension verdict bars, the bandit's
+traffic-allocation shifting live, a **release gate** that flips to SHIP/BLOCK once each arm
+has `GATE_MIN_RUNS` judged runs (optionally posting a one-shot Slack alert), a pass-rate
+trend + cost-vs-quality history strip, and a deep link from every card to the same
+trajectory in the Jetty UI. It reads the same `.env` as everything else, so the agent and
+the monitor watch the same collection/task and arm the gate at the same count with no extra
+config.
+
+```bash
+cp .env.example .env && set -a && . ./.env && set +a   # one .env for every terminal
+npm run deploy-judge                          # once
+JUDGE_MODE=simple_judge npx eve dev           # terminal 1 — agent + bandit + judge
+npm run monitor                               # terminal 2 — http://localhost:4600
+                                              #   (set SLACK_ALERT_CHANNEL in .env for the alert)
+FEED_ROUNDS=2 npm run feed                    # terminal 3 — or let the room type
+```
+
+Stage arc: runs stream in 50/50 while the bandit explores → the trap ticket gets a warm
+reply flagged **⚠ POLICY** → at 5 judged runs per arm the gate flips to **BLOCK v2
+(terse)** and the Slack alert fires → the allocation bar converges on warm for the rest
+of the session. Measurement → decision → action, all driven by Jetty grades.
 
 ## Why Jetty here
 
@@ -216,6 +258,7 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 
 | Path | What it is |
 |------|------------|
+| `start.mjs` | `npm start`, the one-command launcher: validates `.env`, deploys the judge, runs the agent + monitor together, clean Ctrl-C. See [`DEMO.md`](DEMO.md). |
 | `agent/instructions.md` | The eve agent's always-on system prompt (the JSON contract). |
 | `agent/agent.ts` | The eve agent's runtime config (`defineAgent`). |
 | `agent/channels/eve.ts` | The HTTP channel the harness drives (auth config). |
@@ -225,11 +268,14 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
 | `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
 | `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty (Part 1). |
-| `agent/instructions/arm.ts` | Part 2 — per-turn warm/terse arm selection for live `eve dev` (dynamic instructions). |
-| `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory. |
+| `agent/instructions/arm.ts` | Part 2 — per-turn arm selection for live `eve dev`: a Thompson bandit rewarded by live Jetty pass-rates (dynamic instructions). |
+| `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory (and in judge mode, labels grade + dimensions + policy). |
 | `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
-| `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task (`JUDGE_MODE=simple_judge`, no grade-watcher). |
-| `src/live-board.ts` | Part 2 — `npm run board`, the live scoreboard that lights up as grades land. |
+| `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task with the multi-dimension rubric (`JUDGE_MODE=simple_judge`, no grade-watcher). |
+| `src/judge-smoke.ts` | Part 2b — `npm run judge-smoke`, demo-prep sanity check: judges a canned policy-violating triage, asserts the verdict shape. |
+| `src/live-board.ts` | Part 2 — `npm run board`, the simple zero-config scoreboard that lights up as grades land. |
+| `monitor/` | Part 2 — `npm run monitor`, the full conference dashboard (verdict bars, bandit allocation, release gate + Slack alert, history strip). Zero-dep Node; reads the shared `.env`. |
+| `monitor-vercel/` | The dashboard as a one-click Vercel deploy: static page + a stateless `/api/runs` function (client polls instead of SSE). See [`DEMO.md`](DEMO.md#deploy-it-to-vercel-end-to-end). |
 | `src/feed.ts` | Part 2 — `npm run feed`, sends the sample tickets into `eve dev` (rehearsal). |
 | `src/cost.ts` | Estimates per-run cost from eve token usage (eve has no cost field). |
 | `src/eval.ts` | `aggregate()` + `renderVerdict()`: the scoring and the table. |

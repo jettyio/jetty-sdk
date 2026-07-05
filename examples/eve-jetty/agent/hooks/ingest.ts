@@ -91,6 +91,84 @@ interface Triage {
   draft_reply?: string;
 }
 
+/** The judge's full verdict, parsed out of simple_judge's raw_result JSON. */
+interface JudgeVerdict {
+  score?: number;
+  explanation?: string;
+  dimensions?: Record<string, number>;
+  policy_violation?: boolean;
+}
+
+/** Parse the judge's raw_result (tolerates fences/prose around the JSON). */
+function parseVerdict(raw: unknown): JudgeVerdict {
+  if (typeof raw !== "string") return {};
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end < start) return {};
+  try {
+    return JSON.parse(raw.slice(start, end + 1)) as JudgeVerdict;
+  } catch {
+    return {};
+  }
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * addLabel with retry. A grade a human never sees is a grade that didn't happen —
+ * one dropped POST used to leave a judged run permanently unlabeled on the board,
+ * so each label gets three attempts with backoff before we give up and log.
+ */
+async function addLabelSafe(
+  client: JettyClient,
+  id: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await client.addLabel(COLLECTION, AGENT_TASK, id, key, value, AUTHOR);
+      return;
+    } catch (err) {
+      if (attempt === 3) {
+        console.warn(`[ingest-hook] label ${key}=${value} failed after 3 tries: ${msg(err)}`);
+        return;
+      }
+      await sleep(400 * attempt);
+    }
+  }
+}
+
+/**
+ * Write the labels, then verify they stuck and re-write any that didn't.
+ *
+ * Labels POSTed in the first moments after a run reaches `completed` can be lost
+ * server-side: mise's own final trajectory write races the label write and clobbers
+ * it (observed as runs missing exactly the FIRST label written, with a 200 on every
+ * POST — retries can't help because the client never sees a failure). So: settle,
+ * write, read back, repair.
+ */
+async function writeLabelsVerified(
+  client: JettyClient,
+  id: string,
+  labels: Array<[string, string]>,
+): Promise<void> {
+  await sleep(1500); // let the server's final trajectory write land first
+  for (const [k, v] of labels) await addLabelSafe(client, id, k, v);
+  await sleep(1200);
+  try {
+    const traj = await client.getTrajectory(COLLECTION, AGENT_TASK, id);
+    const present = new Set((traj.labels ?? []).map((l) => l.key));
+    const missing = labels.filter(([k]) => !present.has(k));
+    for (const [k, v] of missing) {
+      console.warn(`[ingest-hook] label ${k} lost server-side on ${id} — re-writing`);
+      await addLabelSafe(client, id, k, v);
+    }
+  } catch (err) {
+    console.warn(`[ingest-hook] label verify on ${id} skipped: ${msg(err)}`);
+  }
+}
+
 /**
  * JUDGE_MODE="simple_judge": run the native Jetty `simple_judge` task on triage-live
  * for this turn (one LLM call, no sandbox), then promote its score — a step output —
@@ -119,18 +197,35 @@ async function runJudge(
   );
 
   const out = (traj.steps?.judge?.outputs ?? {}) as Record<string, unknown>;
-  const results = out.results as Array<{ score?: number }> | undefined;
+  const results = out.results as Array<{ score?: number; raw_result?: string }> | undefined;
   const score = Number(out.average_score ?? results?.[0]?.score);
   const ok = Number.isFinite(score);
-  const pass = ok && score >= 4.0; // keep the 4.0 bar (simple_judge has no pass field)
+  const verdict = parseVerdict(results?.[0]?.raw_result);
+  const violation = verdict.policy_violation === true;
+  // The 4.0 bar, plus a hard policy floor: a reply that overpromises never passes,
+  // however warm it reads. (The rubric already caps the score, but the floor makes
+  // the gate independent of the judge honouring that instruction.)
+  const pass = ok && score >= 4.0 && !violation;
   const id = traj.trajectory_id;
 
-  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.config", arm, AUTHOR);
-  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.grade", ok ? score.toFixed(2) : "n/a", AUTHOR);
-  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.pass", String(pass), AUTHOR);
-  await client.addLabel(COLLECTION, AGENT_TASK, id, "eval.source", "eve-dev", AUTHOR);
-  await client.addLabel(COLLECTION, AGENT_TASK, id, "cost_est_usd", cost.toFixed(6), AUTHOR);
-  console.log(`[ingest-hook] ${arm} turn → judged ${id}: ${ok ? score.toFixed(1) : "?"} ${pass ? "PASS" : "fail"}`);
+  const labels: Array<[string, string]> = [
+    ["eval.config", arm],
+    ["eval.grade", ok ? score.toFixed(2) : "n/a"],
+    ["eval.pass", String(pass)],
+    ["eval.source", "eve-dev"],
+    ["cost_est_usd", cost.toFixed(6)],
+  ];
+  for (const [dim, v] of Object.entries(verdict.dimensions ?? {})) {
+    if (Number.isFinite(Number(v))) labels.push([`eval.dim.${dim}`, Number(v).toFixed(1)]);
+  }
+  if (verdict.policy_violation != null) {
+    labels.push(["eval.policy_violation", String(violation)]);
+  }
+  await writeLabelsVerified(client, id, labels);
+  console.log(
+    `[ingest-hook] ${arm} turn → judged ${id}: ${ok ? score.toFixed(1) : "?"} ` +
+      `${pass ? "PASS" : "fail"}${violation ? " ⚠ policy" : ""}`,
+  );
 }
 
 export default defineHook({

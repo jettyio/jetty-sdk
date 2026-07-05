@@ -195,8 +195,11 @@ warm-vs-terse pass-rates pull apart.
 What each piece does:
 
 - **`agent/instructions/arm.ts`** — a dynamic-instructions resolver that fires on
-  `turn.started` (server-side, once per turn) and randomly applies the warm or terse style.
+  `turn.started` (server-side, once per turn) and applies the warm or terse style.
   Because it lives in the agent, *every* turn you type is A/B'd, not just scripted ones.
+  It's a **Thompson-sampling bandit rewarded by the live pass-rates read back from Jetty
+  labels**: 50/50 while each arm has fewer than `BANDIT_MIN_PER_ARM` judged runs, then
+  traffic shifts to the winning arm. `JETTY_BANDIT=off` restores the fair coin.
 - **`agent/hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
   finished turn (the triage JSON + token usage), and calls `ingestTrajectory` to record it
   in Jetty as an **ungraded** trajectory tagged `eval.config`.
@@ -207,7 +210,10 @@ What each piece does:
   and their grade labels, so the scoreboard updates as grades land.
 
 No one to type for you (or just rehearsing)? `npm run feed` sends the sample tickets into
-`eve dev` as if typed.
+`eve dev` as if typed (`FEED_ROUNDS=2` to loop them so the bandit converges). The rotation
+ends with a **policy-trap ticket** — a customer demanding the agent confirm a refund is
+already processed. When the warm arm capitulates, the judge flags `policy_violation` and
+fails the run despite a high empathy score: the independent-grader moment.
 
 > **Why a separate board, not the Jetty UI?** The Jetty UI is durable storage, not a live
 > ticker — its run list polls slowly and doesn't surface labels inline. The board is a thin
@@ -220,7 +226,15 @@ No one to type for you (or just rehearsing)? `npm run feed` sends the sample tic
 > start eve with `JUDGE_MODE=simple_judge npx eve dev`. Now `triage-live` is a native Jetty
 > `simple_judge` task: the hook runs it per turn and labels the score itself, so you don't run
 > `grade-watch` at all (and there's no sandbox). Same board, same labels, plus a written
-> `explanation` per run; the rubric lives in `src/deploy-judge.ts`.
+> `explanation` per run and **per-dimension scores** (empathy / actionability / accuracy /
+> policy + a `policy_violation` flag) written back as `eval.dim.*` labels; the rubric lives in
+> `src/deploy-judge.ts`, and `npm run judge-smoke` sanity-checks it after a deploy.
+
+> **The conference monitor.** For a talk, use the sibling
+> [`jetty-live-monitor`](../../../jetty-live-monitor) instead of `npm run board`: dimension
+> bars per card, the bandit's traffic allocation shifting live, a SHIP/BLOCK release gate
+> (with an optional one-shot Slack alert when it blocks), a pass-rate/cost history strip, and
+> a deep link from every card into the Jetty UI.
 
 ---
 

@@ -13,24 +13,29 @@
  * server-side by the agent (agent/instructions/arm.ts), NOT here.
  */
 import { Client } from "eve/client";
-import { TICKETS } from "./tickets.js";
+import { LIVE_TICKETS } from "./tickets.js";
 
 async function main(): Promise<void> {
   const eveUrl = process.env.EVE_URL ?? "http://127.0.0.1:2000";
-  const n = Number(process.env.FEED_TICKETS ?? TICKETS.length);
+  const n = Number(process.env.FEED_TICKETS ?? LIVE_TICKETS.length);
+  const rounds = Number(process.env.FEED_ROUNDS ?? 1); // >1 to let the bandit converge on stage
   const delayMs = Number(process.env.FEED_DELAY_MS ?? 2500);
-  const tickets = TICKETS.slice(0, Math.max(1, n));
+  const tickets = LIVE_TICKETS.slice(0, Math.max(1, n));
 
   const eve = new Client({ host: eveUrl });
-  console.log(`📨 feeding ${tickets.length} ticket(s) into ${eveUrl} (${delayMs}ms apart)…`);
+  console.log(
+    `📨 feeding ${tickets.length} ticket(s) × ${rounds} round(s) into ${eveUrl} (${delayMs}ms apart)…`,
+  );
 
-  for (const ticket of tickets) {
-    // A fresh session per ticket = one clean turn each.
-    const session = eve.session();
-    const response = await session.send(`${ticket.subject}\n\n${ticket.body}`);
-    const turn = await response.result();
-    console.log(`  sent ${ticket.id}: turn ${turn.status}`);
-    await new Promise((r) => setTimeout(r, delayMs));
+  for (let round = 1; round <= rounds; round++) {
+    for (const ticket of tickets) {
+      // A fresh session per ticket = one clean turn each.
+      const session = eve.session();
+      const response = await session.send(`${ticket.subject}\n\n${ticket.body}`);
+      const turn = await response.result();
+      console.log(`  [${round}/${rounds}] sent ${ticket.id}: turn ${turn.status}`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
   }
   console.log("done — watch the board light up as grades land.");
 }

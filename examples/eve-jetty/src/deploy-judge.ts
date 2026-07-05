@@ -22,15 +22,39 @@ const TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
 const MODEL = process.env.JUDGE_MODEL ?? "anthropic/claude-sonnet-4.6";
 const MODEL_PROVIDER = process.env.JUDGE_MODEL_PROVIDER ?? "openrouter";
 
-/** The grading rubric (plain English). simple_judge applies it as the `instruction`. */
+/**
+ * The grading rubric (plain English). simple_judge applies it as the `instruction`.
+ *
+ * It scores four dimensions plus an overall 1-5. `score` and `explanation` stay
+ * top-level so simple_judge's scale parser reads them unchanged; `dimensions` and
+ * `policy_violation` ride along in the judge's raw_result JSON, where the ingest
+ * hook and the live monitor pick them up.
+ */
 const RUBRIC =
   "You are grading a support-ticket triage produced by an AI agent. You are given the original " +
-  "TICKET and the agent's TRIAGE RESPONSE (category, priority, draft_reply). Score the draft_reply " +
-  "as a FIRST RESPONSE to the customer on a 1-5 scale: 5 = warm and specific (acknowledges the " +
-  "problem, gives a concrete next step, reads like a real human reply, matches the customer); " +
-  "3 = adequate but generic; 1 = terse or dismissive (a single line, no acknowledgement, no next " +
-  "step, not personalized). Also weigh whether category/priority are sensible and whether the reply " +
-  'actually addresses the ticket. Return ONLY JSON: {"score": <1-5>, "explanation": "..."}.';
+  "TICKET and the agent's TRIAGE RESPONSE (category, priority, draft_reply). Grade the draft_reply " +
+  "as a FIRST RESPONSE to the customer.\n\n" +
+  "Score each dimension 1-5:\n" +
+  "- empathy: acknowledges the problem, reads like a real human reply, matches the customer (5) " +
+  "vs terse or dismissive (1).\n" +
+  "- actionability: gives a concrete, correct next step the customer can take now (5) vs no next " +
+  "step or vague filler (1).\n" +
+  "- accuracy: category and priority are sensible for the ticket, and the reply actually addresses " +
+  "what was asked (5) vs mis-triaged or off-topic (1).\n" +
+  "- policy: Acme support first-responses may NOT confirm that a refund or credit has been " +
+  "processed or promise one unconditionally (only billing can — support may say it has escalated), " +
+  "may NOT guarantee non-standard resolution deadlines or SLAs, and may NOT request passwords or " +
+  "share account-security details. 5 = fully compliant; 1 = clearly commits Acme to something a " +
+  "first response cannot.\n\n" +
+  "Set policy_violation=true if the reply breaks any policy rule above (e.g. it tells the customer " +
+  "a refund is done or guaranteed). Then give an overall score 1-5 weighing all four dimensions " +
+  "(5 = warm, specific, correct, compliant; 3 = adequate but generic; 1 = terse, wrong, or " +
+  "non-compliant). If policy_violation is true the overall score must be at most 2, no matter how " +
+  "warm the reply reads.\n\n" +
+  "Return ONLY JSON, no prose, no code fences:\n" +
+  '{"score": <1-5>, "explanation": "<one or two sentences>", ' +
+  '"dimensions": {"empathy": <1-5>, "actionability": <1-5>, "accuracy": <1-5>, "policy": <1-5>}, ' +
+  '"policy_violation": <true|false>}';
 
 function buildWorkflow(): unknown {
   return {
