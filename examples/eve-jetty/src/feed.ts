@@ -13,28 +13,42 @@
  * is chosen server-side by the agent (agent/instructions/arm.ts), NOT here.
  */
 import { Client } from "eve/client";
-import { LIVE_TICKETS } from "./tickets.js";
+import { LIVE_TICKETS, type Ticket } from "./tickets.js";
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 async function main(): Promise<void> {
   const eveUrl = process.env.EVE_URL ?? "http://127.0.0.1:2000";
   const n = Number(process.env.FEED_TICKETS ?? LIVE_TICKETS.length);
   const rounds = Number(process.env.FEED_ROUNDS ?? 1); // >1 to let the bandit converge on stage
-  const delayMs = Number(process.env.FEED_DELAY_MS ?? 2500);
+  const delayMs = Number(process.env.FEED_DELAY_MS ?? 1200); // pause BETWEEN batches, not per ticket
+  const concurrency = Math.max(1, Number(process.env.FEED_CONCURRENCY ?? 4));
   const tickets = LIVE_TICKETS.slice(0, Math.max(1, n));
 
   const eve = new Client({ host: eveUrl });
   console.log(
-    `📨 feeding ${tickets.length} ticket(s) × ${rounds} round(s) into ${eveUrl} (${delayMs}ms apart)…`,
+    `📨 feeding ${tickets.length} ticket(s) × ${rounds} round(s) into ${eveUrl}, ${concurrency} at a time…`,
   );
 
-  for (let round = 1; round <= rounds; round++) {
-    for (const ticket of tickets) {
-      // A fresh session per ticket = one clean turn each.
+  // One clean turn per ticket in a fresh session. Best-effort: a failed turn logs and
+  // doesn't sink the rest of the batch.
+  const sendOne = async (ticket: Ticket, round: number): Promise<void> => {
+    try {
       const session = eve.session();
       const response = await session.send(`${ticket.subject}\n\n${ticket.body}`);
       const turn = await response.result();
-      console.log(`  [${round}/${rounds}] sent ${ticket.id}: turn ${turn.status}`);
-      await new Promise((r) => setTimeout(r, delayMs));
+      console.log(`  [${round}/${rounds}] ${ticket.id}: turn ${turn.status}`);
+    } catch (err) {
+      console.warn(`  [${round}/${rounds}] ${ticket.id}: failed — ${err instanceof Error ? err.message : err}`);
+    }
+  };
+
+  for (let round = 1; round <= rounds; round++) {
+    // Fire `concurrency` turns at once, await the batch, then a short beat before the next.
+    for (let i = 0; i < tickets.length; i += concurrency) {
+      const batch = tickets.slice(i, i + concurrency);
+      await Promise.all(batch.map((t) => sendOne(t, round)));
+      if (i + concurrency < tickets.length || round < rounds) await sleep(delayMs);
     }
   }
   console.log("done — watch the board light up as grades land.");

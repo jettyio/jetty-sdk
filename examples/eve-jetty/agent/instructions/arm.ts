@@ -73,13 +73,15 @@ export const armForTurn: Map<string, Arm> =
   (g[ARM_MAP_KEY] as Map<string, Arm> | undefined) ?? ((g[ARM_MAP_KEY] = new Map<string, Arm>()) as Map<string, Arm>);
 
 // ---------------------------------------------------------------------------
-// The bandit: Beta-Bernoulli Thompson sampling over live Jetty pass-rates.
+// The bandit: EPISODIC Beta-Bernoulli Thompson sampling over live Jetty pass-rates.
 // ---------------------------------------------------------------------------
 
 const BANDIT = process.env.JETTY_BANDIT ?? "thompson"; // "thompson" | "off"
 const MIN_PER_ARM = Number(process.env.BANDIT_MIN_PER_ARM ?? 5);
 const WINDOW = Math.min(200, Number(process.env.BANDIT_WINDOW ?? 60));
 const REFRESH_MS = Number(process.env.BANDIT_REFRESH_MS ?? 8000);
+// Episodic: commit to one arm for this many turns, then re-sample the posterior.
+const EPISODE_LEN = Math.max(1, Number(process.env.BANDIT_EPISODE_LEN ?? 3));
 const COLLECTION = process.env.JETTY_COLLECTION ?? "";
 const TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
 
@@ -93,6 +95,11 @@ const stats: Record<Arm, ArmStats> = Object.fromEntries(
 const armN = (s: ArmStats): number => s.passes + s.fails;
 let lastRefresh = 0;
 let refreshing = false;
+// Episode state: the arm committed for the current episode, and turns left before we re-sample.
+let episodeArm: Arm | null = null;
+let episodeTurnsLeft = 0;
+// Episodes assigned per arm — used to rotate exploration evenly even before grades land.
+const episodesFor: Record<Arm, number> = Object.fromEntries(ARMS.map((a) => [a, 0])) as Record<Arm, number>;
 
 let client: JettyClient | undefined;
 if (COLLECTION && BANDIT !== "off") {
@@ -164,25 +171,45 @@ function sampleBeta(a: number, b: number): number {
 
 const coin = (): Arm => ARMS[Math.floor(Math.random() * ARMS.length)];
 
-/** Pick this turn's arm from the cached posterior (sync — never blocks the turn). */
-function pickArm(): Arm {
-  if (!client || BANDIT === "off") return coin();
-  if (Date.now() - lastRefresh > REFRESH_MS) void refreshStats();
-  // Explore uniformly until EVERY arm has MIN_PER_ARM judged runs, then exploit.
-  if (ARMS.some((a) => armN(stats[a]) < MIN_PER_ARM)) {
+/** Choose the arm for a fresh episode: round-robin the least-judged arm while exploring,
+ *  then Thompson-sample one arm to exploit for the whole episode. */
+function chooseEpisodeArm(): Arm {
+  // Explore: while any arm has < MIN_PER_ARM judged runs, give the episode to the
+  // least-judged arm so every arm fills up evenly.
+  const under = ARMS.filter((a) => armN(stats[a]) < MIN_PER_ARM);
+  if (under.length) {
+    // Fewest episodes assigned so far → even round-robin regardless of grade lag.
+    const arm = under.reduce((lo, a) => (episodesFor[a] < episodesFor[lo] ? a : lo), under[0]);
     console.log(
-      `[bandit] exploring (${ARMS.map((a) => `${a} ${armN(stats[a])}/${MIN_PER_ARM}`).join(", ")} judged) → uniform`,
+      `[bandit] new episode → explore ${arm} (${ARMS.map((a) => `${a} ${armN(stats[a])}/${MIN_PER_ARM}`).join(", ")})`,
     );
-    return coin();
+    return arm;
   }
-  // Thompson: draw a pass-rate from each arm's Beta posterior, take the argmax.
+  // Exploit: draw a pass-rate from each arm's Beta posterior and commit the argmax.
   const draws = ARMS.map((a) => ({ a, x: sampleBeta(1 + stats[a].passes, 1 + stats[a].fails) }));
   const arm = draws.reduce((best, d) => (d.x > best.x ? d : best)).a;
   console.log(
-    `[bandit] thompson ${ARMS.map((a) => `${a} ${stats[a].passes}/${armN(stats[a])}`).join(" ")} ` +
-      `(draws ${draws.map((d) => d.x.toFixed(2)).join("/")}) → ${arm}`,
+    `[bandit] new episode → exploit ${arm} for ${EPISODE_LEN} turn(s) ` +
+      `(${ARMS.map((a) => `${a} ${stats[a].passes}/${armN(stats[a])}`).join(" ")}; draws ${draws.map((d) => d.x.toFixed(2)).join("/")})`,
   );
   return arm;
+}
+
+/** Pick this turn's arm (sync — never blocks the turn). Episodic: the same arm is played
+ *  for EPISODE_LEN turns, then the posterior is re-sampled for the next episode. */
+function pickArm(): Arm {
+  if (!client || BANDIT === "off") return coin(); // controlled fair coin, chosen per turn
+  if (Date.now() - lastRefresh > REFRESH_MS) void refreshStats();
+  if (episodeArm && episodeTurnsLeft > 0) {
+    episodeTurnsLeft--;
+    return episodeArm; // mid-episode: stay on the committed arm
+  }
+  // New episode: pull the latest grades, then choose and commit an arm.
+  void refreshStats();
+  episodeArm = chooseEpisodeArm();
+  episodesFor[episodeArm]++;
+  episodeTurnsLeft = EPISODE_LEN - 1; // this turn is the episode's first
+  return episodeArm;
 }
 
 // Warm the posterior at load so the first turn already sees history.

@@ -269,7 +269,7 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
 | `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
 | `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty (Part 1). |
-| `agent/instructions/arm.ts` | Part 2 — per-turn arm selection for live `eve dev`: a Thompson bandit over three arms (warm / terse / balanced) rewarded by live Jetty pass-rates (dynamic instructions). |
+| `agent/instructions/arm.ts` | Part 2 — episodic arm selection for live `eve dev`: a Thompson bandit over three arms (warm / terse / balanced) that commits one arm per episode, rewarded by live Jetty pass-rates (dynamic instructions). |
 | `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory (and in judge mode, labels grade + dimensions + policy). |
 | `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
 | `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task with the multi-dimension rubric (`JUDGE_MODE=simple_judge`, no grade-watcher). |
