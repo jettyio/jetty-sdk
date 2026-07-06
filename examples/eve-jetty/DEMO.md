@@ -6,6 +6,10 @@ three personas (**warm**, **terse**, and a policy-safe **balanced**), a bandit s
 traffic toward the winner using the live grades, and a **release gate** ships the winner
 and blocks the weaker arms once each has enough judged runs.
 
+> **▶️ Prefer to watch first?** [**See the demo**](media/jetty-eve-demo.mov) — the 3-arm bandit
+> exploring, the judge scoring each reply live, and the release gate shipping the winner. (Opens
+> GitHub's player.)
+
 One command starts the whole thing — you don't fire off each piece by hand:
 
 ```bash
