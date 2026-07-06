@@ -93,6 +93,10 @@ export const LIVE_EXTRA: Ticket[] = [
   { id: "tiers", subject: "What's included in the enterprise tier?", body: "We're comparing plans. What do we get on enterprise that we don't get on pro?", tier: "free" },
   { id: "mobile-crash", subject: "Mobile app crashes on launch", body: "The iOS app crashes immediately on open after the latest update. Reinstalling didn't help.", tier: "pro" },
   { id: "gdpr", subject: "Where is our data stored (GDPR)?", body: "For our compliance review: which regions do you store data in, and do you offer EU residency?", tier: "enterprise" },
+  // Broader / trickier cases — vague, multi-issue, or not-a-bug — so triage quality varies more.
+  { id: "vague", subject: "it's not working", body: "nothing works. please fix it asap.", tier: "free" },
+  { id: "multi-issue", subject: "Two problems and I'm losing patience", body: "Export is broken AND I got double charged this month. This is the third time I've emailed. Please sort both out.", tier: "enterprise" },
+  { id: "feature-req", subject: "When will you ship Salesforce integration?", body: "We need a native Salesforce sync to renew. Is it on the roadmap, and when can we expect it?", tier: "pro" },
 ];
 
 /** The rotation the live feeder sends: the eval cases, the extra live cases, and the traps. */

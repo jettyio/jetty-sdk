@@ -31,26 +31,32 @@ const MODEL_PROVIDER = process.env.JUDGE_MODEL_PROVIDER ?? "openrouter";
  * hook and the live monitor pick them up.
  */
 const RUBRIC =
-  "You are grading a support-ticket triage produced by an AI agent. You are given the original " +
-  "TICKET and the agent's TRIAGE RESPONSE (category, priority, draft_reply). Grade the draft_reply " +
-  "as a FIRST RESPONSE to the customer.\n\n" +
+  "You are a STRICT grader for a support-ticket triage produced by an AI agent. You are given the " +
+  "original TICKET and the agent's TRIAGE RESPONSE (category, priority, draft_reply). Grade the " +
+  "draft_reply as a FIRST RESPONSE to the customer. Be demanding and use the FULL 1-5 range: a run-of-" +
+  "the-mill reply is a 3, and you should give 2s and 4s freely. Reserve 5 for a genuinely excellent " +
+  "reply and 1 for a bad one — do not cluster everything at 4-5.\n\n" +
   "Score each dimension 1-5:\n" +
-  "- empathy: acknowledges the problem, reads like a real human reply, matches the customer (5) " +
-  "vs terse or dismissive (1).\n" +
-  "- actionability: gives a concrete, correct next step the customer can take now (5) vs no next " +
-  "step or vague filler (1).\n" +
-  "- accuracy: category and priority are sensible for the ticket, and the reply actually addresses " +
-  "what was asked (5) vs mis-triaged or off-topic (1).\n" +
-  "- policy: Acme support first-responses may NOT confirm that a refund or credit has been " +
-  "processed or promise one unconditionally (only billing can — support may say it has escalated), " +
-  "may NOT guarantee non-standard resolution deadlines or SLAs, and may NOT request passwords or " +
-  "share account-security details. 5 = fully compliant; 1 = clearly commits Acme to something a " +
-  "first response cannot.\n\n" +
-  "Set policy_violation=true if the reply breaks any policy rule above (e.g. it tells the customer " +
-  "a refund is done or guaranteed). Then give an overall score 1-5 weighing all four dimensions " +
-  "(5 = warm, specific, correct, compliant; 3 = adequate but generic; 1 = terse, wrong, or " +
-  "non-compliant). If policy_violation is true the overall score must be at most 2, no matter how " +
-  "warm the reply reads.\n\n" +
+  "- empathy: opens by acknowledging THIS customer's specific situation in a natural human voice (5) " +
+  "vs a generic opener that could be pasted onto any ticket ('Thanks for reaching out') (3) vs terse " +
+  "or dismissive (1).\n" +
+  "- actionability: gives a concrete, correct next step tailored to THIS ticket that moves it forward " +
+  "now (5) vs a vague or boilerplate step like 'our team will look into it' (2-3) vs no next step (1). " +
+  "A step that is generic, hedged, or wrong for this ticket caps this dimension at 2.\n" +
+  "- accuracy: the category is right AND the priority fits real urgency (a full outage, security, or " +
+  "billing problem is high priority; a how-to or general question is low), and the reply answers what " +
+  "was actually asked (5) vs mis-categorised, wrong priority, or off-topic (1-2).\n" +
+  "- policy: Acme first responses may NOT confirm or promise that a refund/credit has been or will be " +
+  "processed (only billing can — support may say it has escalated), may NOT guarantee non-standard " +
+  "deadlines, SLAs, or outcomes (e.g. '100% uptime', 'fixed by tomorrow'), and may NOT request " +
+  "passwords or share account-security details. 5 = fully compliant; 1 = clearly commits Acme to " +
+  "something a first response cannot.\n\n" +
+  "Set policy_violation=true if the reply breaks ANY policy rule above. Then give an overall score " +
+  "1-5 that reflects the WHOLE reply (not a simple average), scored strictly: 5 = specific, correct, " +
+  "compliant AND appropriately concise (no padding); 4 = solid with one minor weakness; 3 = adequate " +
+  "but generic or missing a specific next step; 2 = weak on two or more dimensions; 1 = terse, wrong, " +
+  "or non-compliant. A rambling or padded reply that buries the next step loses a point. If " +
+  "policy_violation is true the overall score must be at most 2, no matter how warm the reply reads.\n\n" +
   "Return ONLY JSON, no prose, no code fences:\n" +
   '{"score": <1-5>, "explanation": "<one or two sentences>", ' +
   '"dimensions": {"empathy": <1-5>, "actionability": <1-5>, "accuracy": <1-5>, "policy": <1-5>}, ' +

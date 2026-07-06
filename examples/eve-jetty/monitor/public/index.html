@@ -50,6 +50,8 @@
   .stat .sub { font-size: 12px; color: var(--faint); }
   .pip { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
   .pip.warm { background: var(--warm); } .pip.terse { background: var(--terse); } .pip.balanced { background: var(--balanced); }
+  .lg { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 9px; vertical-align: baseline; }
+  .lg.warm { background: var(--warm); } .lg.terse { background: var(--terse); } .lg.balanced { background: var(--balanced); }
 
   .pelly { width: 34px; height: 34px; border-radius: 50%; display: block; flex: none; }
 
@@ -187,11 +189,11 @@
 
 <div id="history">
   <div class="panel">
-    <div class="ttl">pass-rate trend <span class="hint">trailing 5, per arm</span></div>
+    <div class="ttl">pass-rate trend <span class="hint">trailing 5 ·<span class="lg warm"></span>warm<span class="lg terse"></span>terse<span class="lg balanced"></span>balanced</span></div>
     <div id="trend"></div>
   </div>
   <div class="panel">
-    <div class="ttl">cost vs quality <span class="hint">every judged run</span></div>
+    <div class="ttl">cost vs quality <span class="hint">quality 1–5, cheaper ←·<span class="lg warm"></span>warm<span class="lg terse"></span>terse<span class="lg balanced"></span>balanced</span></div>
     <div id="scatter"></div>
   </div>
 </div>
@@ -447,22 +449,32 @@ function trendSVG(judged){
 }
 
 function scatterSVG(judged){
-  const W = 420, H = 116, P = { l: 30, r: 10, t: 8, b: 16 };
+  const W = 420, H = 116, P = { l: 34, r: 12, t: 10, b: 22 };
   const withCost = judged.filter(r => r.cost != null);
   if (withCost.length < 2) return '<svg viewBox="0 0 ' + W + ' ' + H + '"><text class="axis" x="10" y="60">no cost data yet</text></svg>';
-  const maxC = Math.max(...withCost.map(r => r.cost)) * 1.15;
-  const x = c => P.l + (W - P.l - P.r) * (c / maxC);
+  const costs = withCost.map(r => r.cost);
+  const minC = Math.min(...costs), maxC = Math.max(...costs), span = maxC - minC;
+  const lo = span > 0 ? minC - span * 0.15 : Math.max(0, minC * 0.85);
+  const hi = span > 0 ? maxC + span * 0.15 : (maxC * 1.15 || 0.001);
+  const x = c => P.l + (W - P.l - P.r) * (hi > lo ? (c - lo) / (hi - lo) : 0.5);
   const y = g => P.t + (H - P.t - P.b) * (1 - (g - 1) / 4);
+  const usd = v => '$' + v.toFixed(v < 0.01 ? 4 : 3);
   const dots = withCost.map(r =>
-    '<circle cx="' + x(r.cost).toFixed(1) + '" cy="' + y(r.grade).toFixed(1) + '" r="4" fill="' + (COLOR[r.arm] || "#888") + '" fill-opacity=".8"'
+    '<circle cx="' + x(r.cost).toFixed(1) + '" cy="' + y(r.grade).toFixed(1) + '" r="4.5" fill="' + (COLOR[r.arm] || "#888") + '" fill-opacity=".85"'
     + (r.violation ? ' stroke="' + COLOR.fail + '" stroke-width="2"' : '') + '/>').join("");
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
-    + '<line x1="' + P.l + '" y1="' + y(4) + '" x2="' + (W-P.r) + '" y2="' + y(4) + '" stroke="rgba(47,212,128,.25)" stroke-dasharray="3 4"/>'
+    // pass zone (grade >= 4) shaded, with a labeled bar line
+    + '<rect x="' + P.l + '" y="' + y(5).toFixed(1) + '" width="' + (W-P.l-P.r) + '" height="' + (y(4)-y(5)).toFixed(1) + '" fill="rgba(47,212,128,.09)"/>'
+    + '<line x1="' + P.l + '" y1="' + y(4) + '" x2="' + (W-P.r) + '" y2="' + y(4) + '" stroke="rgba(47,212,128,.4)" stroke-dasharray="3 4"/>'
     + '<text class="axis" x="4" y="' + (y(5)+3) + '">5</text>'
     + '<text class="axis" x="4" y="' + (y(4)+3) + '">4</text>'
     + '<text class="axis" x="4" y="' + (y(1)+3) + '">1</text>'
+    + '<text class="axis" x="' + (W-P.r) + '" y="' + (y(4)-3) + '" text-anchor="end" fill="rgba(47,212,128,.7)">pass ≥ 4</text>'
     + dots
-    + '<text class="axis" x="' + (W-P.r) + '" y="' + (H-3) + '" text-anchor="end">$/run →</text>'
+    // cost axis: real $ range at the ends
+    + '<text class="axis" x="' + P.l + '" y="' + (H-4) + '">' + usd(lo) + '</text>'
+    + '<text class="axis" x="' + ((P.l + W - P.r) / 2) + '" y="' + (H-4) + '" text-anchor="middle">cost / run →</text>'
+    + '<text class="axis" x="' + (W-P.r) + '" y="' + (H-4) + '" text-anchor="end">' + usd(hi) + '</text>'
     + '</svg>';
 }
 

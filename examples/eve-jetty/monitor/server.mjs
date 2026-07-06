@@ -66,7 +66,7 @@ const COLLECTION = process.env.JETTY_COLLECTION ?? "jetty-vercel-demo";
 const TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
 // MONITOR_PORT so a shared .env can set the board's port without colliding with a bare PORT.
 const PORT = Number(process.env.MONITOR_PORT ?? process.env.PORT ?? 4600);
-const POLL_MS = Number(process.env.POLL_MS ?? 1500);
+const POLL_MS = Number(process.env.POLL_MS ?? 1000);
 const LIMIT = Number(process.env.LIMIT ?? 100);
 // Arm the gate at the same judged-runs-per-arm count the agent's bandit uses to stop
 // exploring (BANDIT_MIN_PER_ARM), so "the gate is ready" and "the bandit is exploiting"

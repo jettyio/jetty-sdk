@@ -15,7 +15,7 @@ serves the static files and runs `api/runs.js` as a function.
 
 | File | Role |
 |---|---|
-| `index.html` + `pelly.svg` | The dashboard, served static. Polls `/api/runs` every ~1.5s (`?poll=<ms>` to change). |
+| `index.html` + `pelly.svg` | The dashboard, served static. Polls `/api/runs` every ~1s (`?poll=<ms>` to change). |
 | `api/runs.js` | Serverless function: one Jetty fetch → `{ rows, gate, meta }`. The token stays server-side. |
 | `lib/jetty.js` | The trajectory→row/gate logic. Mirrors [`../monitor/server.mjs`](../monitor/server.mjs), minus the poll loop and Slack. |
 

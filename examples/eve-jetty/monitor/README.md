@@ -40,7 +40,7 @@ for the full three-terminal demo arc, and [`.env.example`](../.env.example) for 
 | `JETTY_COLLECTION` | `jetty-vercel-demo` |
 | `JETTY_AGENT_TASK` | `triage-live` (the task the agent ingests to and the monitor watches) |
 | `MONITOR_PORT` | `4600` (falls back to `PORT`) |
-| `POLL_MS` | `1500` |
+| `POLL_MS` | `1000` |
 | `LIMIT` | `100` (runs fetched per poll — feeds the history strip) |
 | `GATE_MIN_RUNS` | `BANDIT_MIN_PER_ARM` (else `5`) — arms the gate at the same count the bandit stops exploring |
 | `SLACK_ALERT_CHANNEL` | unset (set to a channel ID to post one alert per blocked arm) |
@@ -51,7 +51,7 @@ for the full three-terminal demo arc, and [`.env.example`](../.env.example) for 
 
 ## How it works
 
-`server.mjs` polls `GET /api/v1/db/trajectories/{collection}/{task}` every 1.5s, flattens
+`server.mjs` polls `GET /api/v1/db/trajectories/{collection}/{task}` every second, flattens
 each run (ticket from `init_params.input`, reply from the judge's `item` / the ingest step
 output, score from the `eval.grade` label or the `simple_judge` step output, dimensions and
 `policy_violation` from the judge's raw_result JSON with `eval.dim.*` labels as fallback),
