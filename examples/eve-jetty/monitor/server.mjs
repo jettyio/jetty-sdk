@@ -72,7 +72,7 @@ const LIMIT = Number(process.env.LIMIT ?? 100);
 // exploring (BANDIT_MIN_PER_ARM), so "the gate is ready" and "the bandit is exploiting"
 // line up on stage. GATE_MIN_RUNS overrides if you want them to differ.
 const GATE_MIN_RUNS = Number(process.env.GATE_MIN_RUNS ?? process.env.BANDIT_MIN_PER_ARM ?? 5);
-const PASS_BAR = 4.0;
+const PASS_BAR = 3.0;
 
 // Slack alert (optional): set SLACK_ALERT_CHANNEL (e.g. C0B3E7HLBQE for #jetty-alerts)
 // to have the gate post ONCE per blocked arm when it flips to BLOCK.

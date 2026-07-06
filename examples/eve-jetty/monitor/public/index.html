@@ -209,6 +209,7 @@ const feed = document.getElementById("feed");
 const cards = new Map();        // id -> { el, sig }
 const MAX = 12;
 const ALLOC_WINDOW = 12;
+let uiBar = 3;   // pass bar, kept in sync with the gate payload (gate.bar)
 // One source of truth for the arms: key (eval.config), full label, chip text, color.
 const ARMS = [
   { key: "warm", label: "v1 (warm)", short: "warm", color: "#FFB454" },
@@ -373,6 +374,7 @@ function updateGate(gate){
   const el = document.getElementById("gate");
   const body = document.getElementById("gate-body");
   if (!gate) return;
+  if (gate.bar != null) uiBar = gate.bar;
   const a = gate.arms || {};
   const meterHTML = '<div class="meter">' + ARMS.map(arm => {
     const m = a[arm.key] || { rate: null, passes: 0, n: 0 };
@@ -464,12 +466,12 @@ function scatterSVG(judged){
     + (r.violation ? ' stroke="' + COLOR.fail + '" stroke-width="2"' : '') + '/>').join("");
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
     // pass zone (grade >= 4) shaded, with a labeled bar line
-    + '<rect x="' + P.l + '" y="' + y(5).toFixed(1) + '" width="' + (W-P.l-P.r) + '" height="' + (y(4)-y(5)).toFixed(1) + '" fill="rgba(47,212,128,.09)"/>'
-    + '<line x1="' + P.l + '" y1="' + y(4) + '" x2="' + (W-P.r) + '" y2="' + y(4) + '" stroke="rgba(47,212,128,.4)" stroke-dasharray="3 4"/>'
+    + '<rect x="' + P.l + '" y="' + y(5).toFixed(1) + '" width="' + (W-P.l-P.r) + '" height="' + (y(uiBar)-y(5)).toFixed(1) + '" fill="rgba(47,212,128,.09)"/>'
+    + '<line x1="' + P.l + '" y1="' + y(uiBar) + '" x2="' + (W-P.r) + '" y2="' + y(uiBar) + '" stroke="rgba(47,212,128,.4)" stroke-dasharray="3 4"/>'
     + '<text class="axis" x="4" y="' + (y(5)+3) + '">5</text>'
     + '<text class="axis" x="4" y="' + (y(4)+3) + '">4</text>'
     + '<text class="axis" x="4" y="' + (y(1)+3) + '">1</text>'
-    + '<text class="axis" x="' + (W-P.r) + '" y="' + (y(4)-3) + '" text-anchor="end" fill="rgba(47,212,128,.7)">pass ≥ 4</text>'
+    + '<text class="axis" x="' + (W-P.r) + '" y="' + (y(uiBar)-3) + '" text-anchor="end" fill="rgba(47,212,128,.7)">pass ≥ ' + uiBar + '</text>'
     + dots
     // cost axis: real $ range at the ends
     + '<text class="axis" x="' + P.l + '" y="' + (H-4) + '">' + usd(lo) + '</text>'

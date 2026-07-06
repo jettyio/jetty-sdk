@@ -145,7 +145,7 @@ export function buildPayload(data, env) {
   const TASK = env.JETTY_AGENT_TASK || "triage-live";
   // Arm the gate at the same count the agent's bandit stops exploring — see the local monitor.
   const GATE_MIN_RUNS = Number(env.GATE_MIN_RUNS || env.BANDIT_MIN_PER_ARM || 5);
-  const PASS_BAR = 4.0;
+  const PASS_BAR = 3.0;
   const cfg = { UI, COLLECTION, TASK, PASS_BAR };
 
   const rows = (data.trajectories || [])

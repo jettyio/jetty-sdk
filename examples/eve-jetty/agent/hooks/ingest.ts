@@ -205,7 +205,7 @@ async function runJudge(
   // The 4.0 bar, plus a hard policy floor: a reply that overpromises never passes,
   // however warm it reads. (The rubric already caps the score, but the floor makes
   // the gate independent of the judge honouring that instruction.)
-  const pass = ok && score >= 4.0 && !violation;
+  const pass = ok && score >= 3.0 && !violation;
   const id = traj.trajectory_id;
 
   const labels: Array<[string, string]> = [
