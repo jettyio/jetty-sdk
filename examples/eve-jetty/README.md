@@ -11,10 +11,14 @@ The agent runs on **[eve](https://vercel.com/docs/eve)**, Vercel's filesystem-fi
 framework where an agent is a directory of files. **Jetty** grades every run and stores
 it, and **`@jetty/sdk`** orchestrates the comparison.
 
-> **▶️ Watch the demo — [`jetty-eve-demo.mov`](media/jetty-eve-demo.mov):** an eve agent running an
-> online **3-arm bandit** (warm / terse / balanced) that steers its own traffic from **live Jetty
-> grades**, while the release gate ships the winner and blocks the weak arms in real time — the whole
-> online-eval loop for bandit agents on eve. (Click to play on GitHub; [`DEMO.md`](DEMO.md) to run it yourself.)
+**Online bandit agents on eve, graded live by Jetty** — an eve agent runs a 3-arm bandit
+(warm / terse / balanced) that steers its own traffic from live Jetty grades, while the release
+gate ships the winner and blocks the weak arms in real time:
+
+[![eve × Jetty online bandit demo](media/jetty-eve-demo.gif)](media/jetty-eve-demo.mov)
+
+▶️ Autoplays above — click for the full-resolution [video](media/jetty-eve-demo.mov), or see
+[`DEMO.md`](DEMO.md) to run it yourself.
 
 ```
 TICKETS: 5   GRADER: rubric (independent)
