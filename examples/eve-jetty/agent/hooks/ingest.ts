@@ -228,25 +228,31 @@ async function runJudge(
   );
 }
 
+// eve's turnId is per-session (turn_0, turn_1, …); key per-turn state by session+turn so
+// concurrent sessions (e.g. the batched feeder) don't collide on "turn_0". Must match the
+// key agent/instructions/arm.ts uses when it records the arm.
+const sk = (ctx: { session: { id: string } }, turnId: string): string => `${ctx.session.id}:${turnId}`;
+
 export default defineHook({
   events: {
-    "message.received"(event) {
-      turn(event.data.turnId).input = event.data.message;
+    "message.received"(event, ctx) {
+      turn(sk(ctx, event.data.turnId)).input = event.data.message;
     },
-    "step.completed"(event) {
-      const t = turn(event.data.turnId);
+    "step.completed"(event, ctx) {
+      const t = turn(sk(ctx, event.data.turnId));
       t.inTok += event.data.usage?.inputTokens ?? 0;
       t.outTok += event.data.usage?.outputTokens ?? 0;
     },
-    "message.completed"(event) {
-      if (event.data.message) turn(event.data.turnId).reply = event.data.message;
+    "message.completed"(event, ctx) {
+      if (event.data.message) turn(sk(ctx, event.data.turnId)).reply = event.data.message;
     },
     async "turn.completed"(event, ctx) {
       const turnId = event.data.turnId;
-      const t = turns.get(turnId);
-      turns.delete(turnId);
-      const arm = armForTurn.get(turnId);
-      armForTurn.delete(turnId);
+      const k = sk(ctx, turnId);
+      const t = turns.get(k);
+      turns.delete(k);
+      const arm = armForTurn.get(k);
+      armForTurn.delete(k);
       if (disabled || !client || !t?.reply) return;
 
       const triage = extractTriage(t.reply);

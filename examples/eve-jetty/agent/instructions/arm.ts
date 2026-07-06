@@ -217,10 +217,14 @@ void refreshStats();
 
 export default defineDynamic({
   events: {
-    "turn.started": (event) => {
+    "turn.started": (event, ctx) => {
       const turnId = (event as { data?: { turnId?: string } }).data?.turnId ?? "";
+      // eve's turnId is per-session (turn_0, turn_1, …), so key by session+turn — otherwise
+      // concurrent sessions (e.g. the batched feeder) all collide on "turn_0". The ingest
+      // hook reads the arm back with this same key.
+      const sessionId = (ctx as { session?: { id?: string } })?.session?.id ?? "";
       const arm = pickArm();
-      if (turnId) armForTurn.set(turnId, arm);
+      if (turnId) armForTurn.set(`${sessionId}:${turnId}`, arm);
       return defineInstructions({
         markdown:
           `For THIS reply, ${ARM_STYLE[arm]}\n\n` +
