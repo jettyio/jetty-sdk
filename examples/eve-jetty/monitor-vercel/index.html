@@ -16,6 +16,7 @@
     --faint: #5f5f7a;
     --warm: #FFB454;
     --terse: #6EA8FE;
+    --balanced: #B99CFF;
     --pass: #2FD480;
     --fail: #FF5CA8;
     --brand: #8E7BFF;
@@ -48,7 +49,7 @@
   .stat .v { font-size: 22px; font-weight: 680; letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
   .stat .sub { font-size: 12px; color: var(--faint); }
   .pip { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
-  .pip.warm { background: var(--warm); } .pip.terse { background: var(--terse); }
+  .pip.warm { background: var(--warm); } .pip.terse { background: var(--terse); } .pip.balanced { background: var(--balanced); }
 
   .pelly { width: 34px; height: 34px; border-radius: 50%; display: block; flex: none; }
 
@@ -78,10 +79,8 @@
   .meter .warm i { background: var(--warm); } .meter .terse i { background: var(--terse); }
 
   .alloc-bar { height: 26px; border-radius: 9px; overflow: hidden; display: flex; background: rgba(255,255,255,.05); }
-  .alloc-bar .w, .alloc-bar .t { height: 100%; transition: width .9s cubic-bezier(.2,.8,.2,1); display: flex; align-items: center; overflow: hidden; }
-  .alloc-bar .w { background: linear-gradient(180deg, rgba(255,180,84,.85), rgba(255,180,84,.6)); justify-content: flex-start; }
-  .alloc-bar .t { background: linear-gradient(180deg, rgba(110,168,254,.85), rgba(110,168,254,.6)); justify-content: flex-end; }
-  .alloc-bar span { font-size: 12px; font-weight: 720; color: #0b0b14; padding: 0 9px; white-space: nowrap; }
+  .alloc-bar .seg { height: 100%; transition: width .9s cubic-bezier(.2,.8,.2,1); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .alloc-bar .seg span { font-size: 12px; font-weight: 720; color: #0b0b14; padding: 0 8px; white-space: nowrap; }
   .alloc-sub { margin-top: 7px; color: var(--faint); font-size: 12px; }
 
   /* ---- history strip ---- */
@@ -120,6 +119,7 @@
   .arm { font-size: 12px; font-weight: 700; letter-spacing: .02em; padding: 4px 11px; border-radius: 999px; text-transform: lowercase; }
   .arm.warm { color: var(--warm); background: rgba(255,180,84,.13); }
   .arm.terse { color: var(--terse); background: rgba(110,168,254,.13); }
+  .arm.balanced { color: var(--balanced); background: rgba(185,156,255,.13); }
   .arm.unknown { color: var(--faint); background: rgba(255,255,255,.05); }
   .ago { color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
   .cost { margin-left: auto; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -168,6 +168,7 @@
   <div class="summary">
     <div class="stat"><div class="k"><span class="pip warm"></span>v1 · warm</div><div class="v" id="warm-rate">—</div><div class="sub" id="warm-sub">no runs yet</div></div>
     <div class="stat"><div class="k"><span class="pip terse"></span>v2 · terse</div><div class="v" id="terse-rate">—</div><div class="sub" id="terse-sub">no runs yet</div></div>
+    <div class="stat"><div class="k"><span class="pip balanced"></span>v3 · balanced</div><div class="v" id="balanced-rate">—</div><div class="sub" id="balanced-sub">no runs yet</div></div>
     <div class="stat"><div class="k">judged</div><div class="v" id="total">0</div><div class="sub" id="total-sub">0 streaming</div></div>
   </div>
 </header>
@@ -179,7 +180,7 @@
   </div>
   <div class="panel" id="alloc">
     <div class="ttl">traffic allocation <span class="hint">bandit steered by Jetty grades</span></div>
-    <div class="alloc-bar"><div class="w" id="alloc-w" style="width:50%"><span>warm</span></div><div class="t" id="alloc-t" style="width:50%"><span>terse</span></div></div>
+    <div class="alloc-bar" id="alloc-bar"></div>
     <div class="alloc-sub" id="alloc-sub">last 12 runs — waiting…</div>
   </div>
 </div>
@@ -206,7 +207,14 @@ const feed = document.getElementById("feed");
 const cards = new Map();        // id -> { el, sig }
 const MAX = 12;
 const ALLOC_WINDOW = 12;
-const ARM_LABEL = { warm: "v1 (warm)", terse: "v2 (terse)" };
+// One source of truth for the arms: key (eval.config), full label, chip text, color.
+const ARMS = [
+  { key: "warm", label: "v1 (warm)", short: "warm", color: "#FFB454" },
+  { key: "terse", label: "v2 (terse)", short: "terse", color: "#6EA8FE" },
+  { key: "balanced", label: "v3 (balanced)", short: "balanced", color: "#B99CFF" },
+];
+const ARM_KEYS = new Set(ARMS.map(a => a.key));
+const ARM_LABEL = Object.fromEntries(ARMS.map(a => [a.key, a.label]));
 
 function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function ago(iso){
@@ -216,7 +224,7 @@ function ago(iso){
   const m = Math.round(s/60); if (m < 60) return m + "m ago";
   return Math.round(m/60) + "h ago";
 }
-function armClass(a){ return a === "warm" ? "warm" : a === "terse" ? "terse" : "unknown"; }
+function armClass(a){ return ARM_KEYS.has(a) ? a : "unknown"; }
 const pct = x => x == null ? "—" : Math.round(x*100) + "%";
 
 const DIMS = [["empathy","emp"],["actionability","act"],["accuracy","acc"],["policy","pol"]];
@@ -328,28 +336,34 @@ function updateSummary(rows){
     const avg = g.length ? g.reduce((s,x)=>s+x.grade,0)/g.length : null;
     return { n: r.length, g: g.length, rate: g.length ? Math.round(passes/g.length*100) : null, avg };
   };
-  const w = sum("warm"), t = sum("terse");
-  document.getElementById("warm-rate").textContent = w.rate==null ? "—" : w.rate + "%";
-  document.getElementById("warm-sub").textContent = w.g ? (w.g + " judged · avg " + w.avg.toFixed(1)) : (w.n ? w.n + " judging…" : "no runs yet");
-  document.getElementById("terse-rate").textContent = t.rate==null ? "—" : t.rate + "%";
-  document.getElementById("terse-sub").textContent = t.g ? (t.g + " judged · avg " + t.avg.toFixed(1)) : (t.n ? t.n + " judging…" : "no runs yet");
+  for (const a of ARMS){
+    const s = sum(a.key);
+    const rate = document.getElementById(a.key + "-rate");
+    const sub = document.getElementById(a.key + "-sub");
+    if (rate) rate.textContent = s.rate==null ? "—" : s.rate + "%";
+    if (sub) sub.textContent = s.g ? (s.g + " judged · avg " + s.avg.toFixed(1)) : (s.n ? s.n + " judging…" : "no runs yet");
+  }
   const judged = rows.filter(x => x.grade != null).length;
   document.getElementById("total").textContent = judged;
   document.getElementById("total-sub").textContent = rows.length + " total";
 }
 
-/* ---- traffic allocation: the bandit made visible ---- */
+/* ---- traffic allocation: the bandit made visible (N-way split) ---- */
 function updateAlloc(rows){
-  const recent = rows.filter(r => r.arm === "warm" || r.arm === "terse").slice(0, ALLOC_WINDOW);
-  if (!recent.length) return;
-  const w = recent.filter(r => r.arm === "warm").length;
-  const wp = Math.round(w / recent.length * 100), tp = 100 - wp;
-  const we = document.getElementById("alloc-w"), te = document.getElementById("alloc-t");
-  we.style.width = wp + "%"; te.style.width = tp + "%";
-  we.firstElementChild.textContent = wp >= 14 ? "warm " + wp + "%" : "";
-  te.firstElementChild.textContent = tp >= 14 ? tp + "% terse" : "";
+  const recent = rows.filter(r => ARM_KEYS.has(r.arm)).slice(0, ALLOC_WINDOW);
+  const bar = document.getElementById("alloc-bar");
+  if (!recent.length) { bar.innerHTML = ""; return; }
+  const counts = ARMS.map(a => ({ ...a, n: recent.filter(r => r.arm === a.key).length }));
+  bar.innerHTML = counts.map(a => {
+    const p = Math.round(a.n / recent.length * 100);
+    return '<div class="seg" style="width:' + p + '%;background:' + a.color + '">'
+      + '<span>' + (p >= 12 ? a.short + " " + p + "%" : "") + '</span></div>';
+  }).join("");
+  const lead = counts.slice().sort((x,y) => y.n - x.n)[0];
+  const evenShare = 1 / ARMS.length;
   document.getElementById("alloc-sub").textContent =
-    "last " + recent.length + " runs — " + (Math.abs(wp - 50) <= 10 ? "exploring both arms" : "converging on " + (wp > 50 ? "warm" : "terse"));
+    "last " + recent.length + " runs — " +
+    (lead.n / recent.length <= evenShare + 0.12 ? "exploring all arms" : "converging on " + lead.short);
 }
 
 /* ---- release gate ---- */
@@ -357,37 +371,40 @@ function updateGate(gate){
   const el = document.getElementById("gate");
   const body = document.getElementById("gate-body");
   if (!gate) return;
-  const a = gate.arms;
-  const meterHTML =
-      '<div class="meter">'
-    +   '<div class="m warm"><div class="mrow"><span>warm ' + (a.warm.rate!=null ? pct(a.warm.rate) : "—") + '</span><span>' + a.warm.passes + '/' + a.warm.n + '</span></div><div class="bar warm"><i style="width:' + ((a.warm.rate||0)*100) + '%"></i></div></div>'
-    +   '<div class="m terse"><div class="mrow"><span>terse ' + (a.terse.rate!=null ? pct(a.terse.rate) : "—") + '</span><span>' + a.terse.passes + '/' + a.terse.n + '</span></div><div class="bar terse"><i style="width:' + ((a.terse.rate||0)*100) + '%"></i></div></div>'
-    + '</div>';
+  const a = gate.arms || {};
+  const meterHTML = '<div class="meter">' + ARMS.map(arm => {
+    const m = a[arm.key] || { rate: null, passes: 0, n: 0 };
+    return '<div class="m"><div class="mrow"><span>' + arm.short + ' ' + (m.rate!=null ? pct(m.rate) : "—") + '</span>'
+      + '<span>' + m.passes + '/' + m.n + '</span></div>'
+      + '<div class="bar"><i style="width:' + ((m.rate||0)*100) + '%;background:' + arm.color + '"></i></div></div>';
+  }).join("") + '</div>';
   if (!gate.ready) {
     el.className = "panel";
     body.innerHTML =
-        '<div class="gate-arming"><span class="spin"></span> arming — needs ' + gate.minRuns + ' judged runs per arm '
-      + '(warm ' + a.warm.n + '/' + gate.minRuns + ' · terse ' + a.terse.n + '/' + gate.minRuns + ')</div>' + meterHTML;
+        '<div class="gate-arming"><span class="spin"></span> arming — needs ' + gate.minRuns + ' judged runs per arm ('
+      + ARMS.map(arm => arm.short + ' ' + ((a[arm.key]||{}).n || 0) + '/' + gate.minRuns).join(' · ') + ')</div>' + meterHTML;
     return;
   }
-  const winner = gate.winner, blocked = gate.blocked;
-  el.className = "panel " + (blocked ? "blocked" : "clear");
-  let h = '<div class="gate-verdict">'
-    + '<span class="ship">SHIP ' + esc(ARM_LABEL[winner] || winner) + ' ✅</span>';
-  if (blocked) {
-    h += '<span class="block">BLOCK ' + esc(ARM_LABEL[blocked] || blocked) + ' ❌</span>';
-    h += '<span class="gate-detail">' + pct(a[blocked].rate) + ' vs ' + pct(a[winner].rate) + ' pass · bar ' + gate.bar.toFixed(1) + '/5'
-      + (a[blocked].violations ? ' · ' + a[blocked].violations + ' policy' : '') + '</span>';
-    if ((gate.alerted || []).includes(blocked)) h += '<span class="gate-alerted">🔔 alert sent to Slack</span>';
+  const winner = gate.winner;
+  const blocked = Array.isArray(gate.blocked) ? gate.blocked : (gate.blocked ? [gate.blocked] : []);
+  el.className = "panel " + (blocked.length ? "blocked" : "clear");
+  let h = '<div class="gate-verdict"><span class="ship">SHIP ' + esc(ARM_LABEL[winner] || winner) + ' ✅</span>';
+  if (blocked.length) {
+    for (const bk of blocked) h += '<span class="block">BLOCK ' + esc(ARM_LABEL[bk] || bk) + ' ❌</span>';
+    const worst = blocked.slice().sort((x,y) => (a[x].rate||0) - (a[y].rate||0))[0];
+    const viol = blocked.reduce((s,bk) => s + (a[bk].violations||0), 0);
+    h += '<span class="gate-detail">' + pct(a[worst].rate) + ' vs ' + pct(a[winner].rate) + ' pass · bar ' + gate.bar.toFixed(1) + '/5'
+      + (viol ? ' · ' + viol + ' policy' : '') + '</span>';
+    if ((gate.alerted || []).some(x => blocked.includes(x))) h += '<span class="gate-alerted">🔔 alert sent to Slack</span>';
   } else {
-    h += '<span class="gate-detail">both arms clear the bar (' + gate.bar.toFixed(1) + '/5)</span>';
+    h += '<span class="gate-detail">all arms clear the bar (' + gate.bar.toFixed(1) + '/5)</span>';
   }
   body.innerHTML = h + '</div>' + meterHTML;
 }
 
 /* ---- history strip: the durable record, charted ---- */
 function updateHistory(rows){
-  const judged = rows.filter(r => r.grade != null && (r.arm === "warm" || r.arm === "terse"))
+  const judged = rows.filter(r => r.grade != null && ARM_KEYS.has(r.arm))
     .slice().sort((x,y) => String(x.created).localeCompare(String(y.created)));
   const hist = document.getElementById("history");
   if (judged.length < 4) { hist.style.display = "none"; return; }
@@ -396,14 +413,14 @@ function updateHistory(rows){
   document.getElementById("scatter").innerHTML = scatterSVG(judged);
 }
 
-const CSS = getComputedStyle(document.documentElement);
-const COLOR = { warm: "#FFB454", terse: "#6EA8FE", fail: "#FF5CA8" };
+const COLOR = Object.assign({ fail: "#FF5CA8" }, Object.fromEntries(ARMS.map(a => [a.key, a.color])));
 
 function trendSVG(judged){
   const W = 420, H = 116, P = { l: 30, r: 8, t: 8, b: 16 };
-  const seen = { warm: [], terse: [] };
-  const pts = { warm: [], terse: [] };
+  const seen = {}, pts = {};
+  for (const a of ARMS){ seen[a.key] = []; pts[a.key] = []; }
   judged.forEach((r, i) => {
+    if (!seen[r.arm]) return;
     seen[r.arm].push(r.pass ? 1 : 0);
     const wnd = seen[r.arm].slice(-5);
     pts[r.arm].push([i, wnd.reduce((a,b)=>a+b,0) / wnd.length]);
@@ -416,6 +433,7 @@ function trendSVG(judged){
       + arr.map(([i,v]) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ") + '"/>';
   const dots = (arr, color) => arr.map(([i,v]) =>
     '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="2.4" fill="' + color + '"/>').join("");
+  const series = ARMS.map(a => line(pts[a.key], a.color) + dots(pts[a.key], a.color)).join("");
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
     + '<line x1="' + P.l + '" y1="' + y(1) + '" x2="' + (W-P.r) + '" y2="' + y(1) + '" stroke="rgba(255,255,255,.07)"/>'
     + '<line x1="' + P.l + '" y1="' + y(0.5) + '" x2="' + (W-P.r) + '" y2="' + y(0.5) + '" stroke="rgba(255,255,255,.07)"/>'
@@ -423,8 +441,7 @@ function trendSVG(judged){
     + '<text class="axis" x="4" y="' + (y(1)+3) + '">100%</text>'
     + '<text class="axis" x="4" y="' + (y(0.5)+3) + '">50%</text>'
     + '<text class="axis" x="4" y="' + (y(0)+3) + '">0%</text>'
-    + line(pts.warm, COLOR.warm) + line(pts.terse, COLOR.terse)
-    + dots(pts.warm, COLOR.warm) + dots(pts.terse, COLOR.terse)
+    + series
     + '<text class="axis" x="' + (W-P.r) + '" y="' + (H-3) + '" text-anchor="end">judged runs →</text>'
     + '</svg>';
 }

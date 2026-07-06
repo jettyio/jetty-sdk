@@ -11,7 +11,7 @@ Around the card feed it tells the whole experiment story:
   with a pulsing **⚠ POLICY** flag when the judge catches the agent overpromising (try the
   refund-demand trap ticket).
 - **Traffic allocation** — the agent's Thompson bandit (fed by Jetty grades) made visible:
-  the warm/terse split of recent runs, converging on the winner in front of the room.
+  the warm/terse/balanced split of recent runs, converging on the winner in front of the room.
 - **Release gate** — SHIP ✅ / BLOCK ❌ once each arm has `GATE_MIN_RUNS` judged runs;
   blocking can post a one-shot **Slack alert** (the "the eval paged us" beat).
 - **History strip** — rolling pass-rate per arm and a cost-vs-quality scatter, drawn from

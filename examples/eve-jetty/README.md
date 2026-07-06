@@ -129,7 +129,7 @@ Type a support ticket into the `eve dev` chat. What happens:
    with the *independent* Jetty grader, and writes `eval.grade` / `eval.pass` back onto
    the run — decoupled from the chat, so the agent never waits on grading.
 4. **The board lights up.** Each run appears as a row that flips from "grading…" to a
-   green pass or red fail, and the warm-vs-terse pass-rates diverge in front of the room.
+   green pass or red fail, and the arms' pass-rates diverge in front of the room.
 
 No one to type for you? `npm run feed` sends the sample tickets in as if typed
 (`FEED_ROUNDS=2` to loop them and let the bandit converge on stage). The rotation
@@ -191,10 +191,11 @@ npm run monitor                               # terminal 2 — http://localhost:
 FEED_ROUNDS=2 npm run feed                    # terminal 3 — or let the room type
 ```
 
-Stage arc: runs stream in 50/50 while the bandit explores → the trap ticket gets a warm
-reply flagged **⚠ POLICY** → at 5 judged runs per arm the gate flips to **BLOCK v2
-(terse)** and the Slack alert fires → the allocation bar converges on warm for the rest
-of the session. Measurement → decision → action, all driven by Jetty grades.
+Stage arc: runs stream in while the bandit explores all three arms (warm / terse /
+balanced) → a trap ticket gets a warm reply flagged **⚠ POLICY** → at 5 judged runs per
+arm the gate **ships the winner and blocks the weaker arms** (a Slack alert fires per
+blocked arm) → the allocation bar converges on whichever arm the grades favor. Measurement
+→ decision → action, all driven by Jetty grades.
 
 ## Why Jetty here
 
@@ -262,13 +263,13 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `agent/instructions.md` | The eve agent's always-on system prompt (the JSON contract). |
 | `agent/agent.ts` | The eve agent's runtime config (`defineAgent`). |
 | `agent/channels/eve.ts` | The HTTP channel the harness drives (auth config). |
-| `src/tickets.ts` | The eval cases plus the two agent configs (warm vs terse). |
+| `src/tickets.ts` | The Part 1 eval cases + the two batch configs (warm/terse), plus the live-only tickets and policy-trap tickets the feeder sends (3× the rotation). |
 | `src/agent-prompt.ts` | Builds the per-config message and parses the triage JSON back out. |
 | `evals/evals.config.ts` | Wires the native `Jetty()` reporter into `eve eval`. |
 | `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
 | `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
 | `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty (Part 1). |
-| `agent/instructions/arm.ts` | Part 2 — per-turn arm selection for live `eve dev`: a Thompson bandit rewarded by live Jetty pass-rates (dynamic instructions). |
+| `agent/instructions/arm.ts` | Part 2 — per-turn arm selection for live `eve dev`: a Thompson bandit over three arms (warm / terse / balanced) rewarded by live Jetty pass-rates (dynamic instructions). |
 | `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory (and in judge mode, labels grade + dimensions + policy). |
 | `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
 | `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task with the multi-dimension rubric (`JUDGE_MODE=simple_judge`, no grade-watcher). |

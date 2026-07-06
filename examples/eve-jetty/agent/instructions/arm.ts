@@ -35,13 +35,14 @@
  * actually ran. Allowed dynamic-instruction events are only {session.started,
  * turn.started} — `turn.started` re-resolves the prompt per turn.
  *
- * The two styles mirror CONFIGS in src/tickets.ts. They're inlined here (rather
- * than imported across the src/ boundary) so eve's agent loader stays self-contained.
+ * The warm/terse styles mirror CONFIGS in src/tickets.ts (Part 1's batch A/B); `balanced`
+ * is a live-only third candidate. They're inlined here (rather than imported across the
+ * src/ boundary) so eve's agent loader stays self-contained.
  */
 import { defineDynamic, defineInstructions } from "eve/instructions";
 import { JettyClient } from "@jetty/sdk";
 
-export type Arm = "warm" | "terse";
+export type Arm = "warm" | "terse" | "balanced";
 
 const ARM_STYLE: Record<Arm, string> = {
   warm:
@@ -50,7 +51,14 @@ const ARM_STYLE: Record<Arm, string> = {
   terse:
     "write draft_reply as a single terse sentence. Do not apologize, do not add steps " +
     "or detail, do not personalize.",
+  balanced:
+    "write draft_reply as a brief but caring reply: one line of acknowledgement plus one " +
+    "concrete next step. Never promise or confirm an outcome you can't guarantee (a refund, " +
+    "a credit, uptime) — offer the step or the process instead.",
 };
+
+/** The candidate arms the bandit chooses among (keys match the eval.config label). */
+const ARMS: Arm[] = ["warm", "terse", "balanced"];
 
 /**
  * turnId → arm, shared with the ingest hook. Stored on `globalThis` (not a plain
@@ -79,10 +87,9 @@ interface ArmStats {
   passes: number;
   fails: number;
 }
-const stats: Record<Arm, ArmStats> = {
-  warm: { passes: 0, fails: 0 },
-  terse: { passes: 0, fails: 0 },
-};
+const stats: Record<Arm, ArmStats> = Object.fromEntries(
+  ARMS.map((a) => [a, { passes: 0, fails: 0 }]),
+) as Record<Arm, ArmStats>;
 const armN = (s: ArmStats): number => s.passes + s.fails;
 let lastRefresh = 0;
 let refreshing = false;
@@ -102,17 +109,18 @@ async function refreshStats(): Promise<void> {
   refreshing = true;
   try {
     const res = await client.listTrajectories(COLLECTION, TASK, WINDOW, 1);
-    const next: Record<Arm, ArmStats> = { warm: { passes: 0, fails: 0 }, terse: { passes: 0, fails: 0 } };
+    const next: Record<Arm, ArmStats> = Object.fromEntries(
+      ARMS.map((a) => [a, { passes: 0, fails: 0 }]),
+    ) as Record<Arm, ArmStats>;
     for (const t of res.trajectories ?? []) {
       const labels = Object.fromEntries((t.labels ?? []).map((l) => [l.key, l.value]));
       const arm = labels["eval.config"] as Arm | undefined;
       const pass = labels["eval.pass"];
-      if ((arm === "warm" || arm === "terse") && (pass === "true" || pass === "false")) {
+      if (arm && ARMS.includes(arm) && (pass === "true" || pass === "false")) {
         next[arm][pass === "true" ? "passes" : "fails"]++;
       }
     }
-    stats.warm = next.warm;
-    stats.terse = next.terse;
+    for (const a of ARMS) stats[a] = next[a];
     lastRefresh = Date.now();
   } catch (err) {
     // Keep the last posterior; the bandit degrades gracefully when Jetty is briefly away.
@@ -154,26 +162,25 @@ function sampleBeta(a: number, b: number): number {
   return x / (x + y);
 }
 
-const coin = (): Arm => (Math.random() < 0.5 ? "warm" : "terse");
+const coin = (): Arm => ARMS[Math.floor(Math.random() * ARMS.length)];
 
 /** Pick this turn's arm from the cached posterior (sync — never blocks the turn). */
 function pickArm(): Arm {
   if (!client || BANDIT === "off") return coin();
   if (Date.now() - lastRefresh > REFRESH_MS) void refreshStats();
-  if (armN(stats.warm) < MIN_PER_ARM || armN(stats.terse) < MIN_PER_ARM) {
+  // Explore uniformly until EVERY arm has MIN_PER_ARM judged runs, then exploit.
+  if (ARMS.some((a) => armN(stats[a]) < MIN_PER_ARM)) {
     console.log(
-      `[bandit] exploring (warm ${armN(stats.warm)}/${MIN_PER_ARM}, ` +
-        `terse ${armN(stats.terse)}/${MIN_PER_ARM} judged) → 50/50`,
+      `[bandit] exploring (${ARMS.map((a) => `${a} ${armN(stats[a])}/${MIN_PER_ARM}`).join(", ")} judged) → uniform`,
     );
     return coin();
   }
-  const w = sampleBeta(1 + stats.warm.passes, 1 + stats.warm.fails);
-  const t = sampleBeta(1 + stats.terse.passes, 1 + stats.terse.fails);
-  const arm: Arm = w >= t ? "warm" : "terse";
+  // Thompson: draw a pass-rate from each arm's Beta posterior, take the argmax.
+  const draws = ARMS.map((a) => ({ a, x: sampleBeta(1 + stats[a].passes, 1 + stats[a].fails) }));
+  const arm = draws.reduce((best, d) => (d.x > best.x ? d : best)).a;
   console.log(
-    `[bandit] thompson warm ${stats.warm.passes}/${stats.warm.passes + stats.warm.fails} ` +
-      `terse ${stats.terse.passes}/${stats.terse.passes + stats.terse.fails} ` +
-      `(draw ${w.toFixed(2)} vs ${t.toFixed(2)}) → ${arm}`,
+    `[bandit] thompson ${ARMS.map((a) => `${a} ${stats[a].passes}/${armN(stats[a])}`).join(" ")} ` +
+      `(draws ${draws.map((d) => d.x.toFixed(2)).join("/")}) → ${arm}`,
   );
   return arm;
 }

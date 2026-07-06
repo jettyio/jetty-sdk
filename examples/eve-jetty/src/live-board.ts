@@ -63,7 +63,7 @@ const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Live A/B — warm vs terse</title>
+<title>Live A/B — warm · terse · balanced</title>
 <style>
   :root { --ink:#070154; --lav:#6d5efc; --paper:#f7f6fb; --line:#e6e3f2; --pass:#0f9d58; --fail:#e0218a; --pend:#c98a00; }
   * { box-sizing: border-box; }
@@ -72,7 +72,8 @@ const PAGE = `<!doctype html>
   h1 { margin:0; font-size:19px; letter-spacing:-0.01em; }
   .sub { color:#6b6a85; font-size:13px; margin-top:3px; }
   main { max-width:880px; margin:0 auto; padding:24px 28px 56px; }
-  .cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:26px; }
+  .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:26px; }
+  @media (max-width:640px) { .cards { grid-template-columns:1fr; } }
   .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
   .card h2 { margin:0 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:0.06em; color:#6b6a85; }
   .big { font-size:30px; font-weight:650; letter-spacing:-0.02em; }
@@ -82,8 +83,9 @@ const PAGE = `<!doctype html>
   .run { display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line); }
   .run:first-child { border-top:none; }
   .chip { font-size:12px; font-weight:650; padding:3px 9px; border-radius:999px; white-space:nowrap; }
-  .arm-warm { background:#efeaff; color:var(--lav); }
-  .arm-terse { background:#eceaf2; color:#5a5878; }
+  .arm-warm { background:#fff0dc; color:#b3730a; }
+  .arm-terse { background:#e7effe; color:#3562c4; }
+  .arm-balanced { background:#efeaff; color:var(--lav); }
   .arm-unknown { background:#f0eef6; color:#8a88a3; }
   .subject { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#3a3960; }
   .grade { font-variant-numeric:tabular-nums; }
@@ -98,7 +100,7 @@ const PAGE = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1><span class="live"></span>Live A/B — warm vs terse</h1>
+  <h1><span class="live"></span>Live A/B — warm · terse · balanced</h1>
   <div class="sub">Type a support ticket into <code>eve dev</code>. Each turn is graded out of band by an independent Jetty rubric — this board updates every 2s.</div>
 </header>
 <main>
@@ -129,14 +131,16 @@ function gradeChip(x) {
   return '<span class="chip grade ' + cls + '">' + x.grade.toFixed(1) + (x.pass ? ' ✅' : ' ❌') + '</span>';
 }
 function armChip(arm) {
-  var cls = arm === 'warm' ? 'arm-warm' : arm === 'terse' ? 'arm-terse' : 'arm-unknown';
+  var cls = arm === 'warm' ? 'arm-warm' : arm === 'terse' ? 'arm-terse' : arm === 'balanced' ? 'arm-balanced' : 'arm-unknown';
   return '<span class="chip ' + cls + '">' + arm + '</span>';
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c]; }); }
 function render(rows) {
   rows.sort(function (a, b) { return (b.created || '').localeCompare(a.created || ''); });
   document.getElementById('cards').innerHTML =
-    card('warm', 'v1 · warm')(summarize(rows, 'warm')) + card('terse', 'v2 · terse')(summarize(rows, 'terse'));
+    card('warm', 'v1 · warm')(summarize(rows, 'warm'))
+    + card('terse', 'v2 · terse')(summarize(rows, 'terse'))
+    + card('balanced', 'v3 · balanced')(summarize(rows, 'balanced'));
   var feed = document.getElementById('feed');
   if (!rows.length) { feed.innerHTML = '<div class="empty">Waiting for runs… start typing into <code>eve dev</code>.</div>'; return; }
   feed.innerHTML = rows.map(function (x) {

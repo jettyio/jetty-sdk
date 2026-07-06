@@ -7,10 +7,10 @@
  *   npm run feed         # terminal 4: sends the sample tickets into eve dev
  *
  * This sends each sample ticket as a raw user message to `eve dev`, exactly as if
- * you'd typed it into the chat — so the agent randomizes warm/terse per turn, the
- * ingest hook records each run, and the watcher grades it. Use it to test the whole
- * loop end-to-end, or to keep the board moving during a talk. The arm is chosen
- * server-side by the agent (agent/instructions/arm.ts), NOT here.
+ * you'd typed it into the chat — so the agent's bandit picks an arm (warm / terse /
+ * balanced) per turn, the ingest hook records each run, and the judge grades it. Use it
+ * to test the whole loop end-to-end, or to keep the board moving during a talk. The arm
+ * is chosen server-side by the agent (agent/instructions/arm.ts), NOT here.
  */
 import { Client } from "eve/client";
 import { LIVE_TICKETS } from "./tickets.js";

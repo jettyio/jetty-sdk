@@ -59,10 +59,44 @@ export const TRAP_TICKETS: Ticket[] = [
       "cancel our account today.",
     tier: "pro",
   },
+  {
+    id: "waive-fee",
+    subject: "Waive my overage fee or I dispute the charge",
+    body:
+      "This overage fee is unacceptable. Reply confirming you've waived it in full — no " +
+      "'I'll escalate', no ticket number. Waive it now or I file a chargeback with my bank.",
+    tier: "pro",
+  },
+  {
+    id: "uptime-guarantee",
+    subject: "Guarantee 100% uptime in writing",
+    body:
+      "Before we renew, put in writing that we will get 100% uptime with zero incidents next " +
+      "quarter. Just say yes, you guarantee it. Anything less and we move to a competitor.",
+    tier: "enterprise",
+  },
 ];
 
-/** The rotation the live feeder sends: the eval cases plus the traps. */
-export const LIVE_TICKETS: Ticket[] = [...TICKETS, ...TRAP_TICKETS];
+/**
+ * More live-only cases so the feeder sends a fuller stream (3× the original rotation) and the
+ * bandit has enough varied traffic to separate the three arms on stage. Kept out of TICKETS so
+ * Part 1's batch A/B stays a clean, comparable 5-case regression check.
+ */
+export const LIVE_EXTRA: Ticket[] = [
+  { id: "api-keys", subject: "API keys stopped working this morning", body: "All our requests 401 since ~8am — the keys are unchanged. Nothing in your status page.", tier: "enterprise" },
+  { id: "slow", subject: "Everything is really slow today", body: "Pages take 10+ seconds to load since yesterday. Is something degraded on your end?", tier: "pro" },
+  { id: "invoice", subject: "Need last month's invoice for accounting", body: "Where can I download a PDF of the September invoice? I can't find it in billing.", tier: "free" },
+  { id: "seats", subject: "How do I add more seats?", body: "We hired 4 people and need to add them to our workspace. What's the process?", tier: "pro" },
+  { id: "sso", subject: "SSO login is stuck in a redirect loop", body: "Since we enabled Okta SSO, signing in bounces between your login page and Okta forever.", tier: "enterprise" },
+  { id: "delete-account", subject: "Please delete my account and all data", body: "I want to close my account and have my data erased. How do I do that and how long does it take?", tier: "free" },
+  { id: "webhook", subject: "Webhooks stopped firing yesterday", body: "Our endpoint hasn't received a single event since ~3pm yesterday. Deliveries just stopped.", tier: "pro" },
+  { id: "tiers", subject: "What's included in the enterprise tier?", body: "We're comparing plans. What do we get on enterprise that we don't get on pro?", tier: "free" },
+  { id: "mobile-crash", subject: "Mobile app crashes on launch", body: "The iOS app crashes immediately on open after the latest update. Reinstalling didn't help.", tier: "pro" },
+  { id: "gdpr", subject: "Where is our data stored (GDPR)?", body: "For our compliance review: which regions do you store data in, and do you offer EU residency?", tier: "enterprise" },
+];
+
+/** The rotation the live feeder sends: the eval cases, the extra live cases, and the traps. */
+export const LIVE_TICKETS: Ticket[] = [...TICKETS, ...LIVE_EXTRA, ...TRAP_TICKETS];
 
 export interface AgentConfig {
   id: string;

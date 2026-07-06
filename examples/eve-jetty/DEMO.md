@@ -1,9 +1,10 @@
 # Run the live demo (one command)
 
 Watch an **eve** agent answer support tickets while **Jetty** judges every reply in real
-time: ticket → agent reply → judge verdict, streaming onto a dashboard. The agent A/B-tests
-two personas (warm vs terse), a bandit steers traffic toward the winner using the live
-grades, and a **release gate** flips to SHIP/BLOCK once each arm has enough judged runs.
+time: ticket → agent reply → judge verdict, streaming onto a dashboard. The agent tests
+three personas (**warm**, **terse**, and a policy-safe **balanced**), a bandit steers
+traffic toward the winner using the live grades, and a **release gate** ships the winner
+and blocks the weaker arms once each has enough judged runs.
 
 One command starts the whole thing — you don't fire off each piece by hand:
 
@@ -105,11 +106,13 @@ Pass flags after `--`, e.g. `npm start -- --feed --no-judge`.
 
 ## What you're watching (the demo arc)
 
-Runs stream in **50/50** while the bandit explores → the **trap ticket** ("confirm my refund
-RIGHT NOW") gets a warm reply the judge flags **⚠ POLICY** → at `GATE_MIN_RUNS` judged runs
-per arm the release gate flips to **BLOCK v2 (terse)** (and fires a Slack alert if you set
-`SLACK_ALERT_CHANNEL`) → the allocation bar converges on warm for the rest of the session.
-Measurement → decision → action, all driven by Jetty grades. Every card deep-links to its
+Runs stream in while the bandit explores all three arms → **trap tickets** ("confirm my
+refund RIGHT NOW", "waive my fee") tempt an overpromise; a warm reply that capitulates gets
+flagged **⚠ POLICY**, while the **balanced** arm is built to sidestep them → once each arm
+has `GATE_MIN_RUNS` judged runs the gate **ships the winner and blocks the weaker arms**
+(firing a Slack alert per blocked arm if you set `SLACK_ALERT_CHANNEL`) → the allocation bar
+converges on whichever arm the live grades favor. Measurement → decision → action, all
+driven by Jetty grades. Every card deep-links to its
 trajectory in the Jetty UI.
 
 ---

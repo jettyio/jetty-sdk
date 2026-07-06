@@ -10,6 +10,9 @@
 
 const DIM_KEYS = ["empathy", "actionability", "accuracy", "policy"];
 
+// The candidate arms the bandit chooses among (must match agent/instructions/arm.ts).
+const ARMS = ["warm", "terse", "balanced"];
+
 /** Parse the agent's reply out of the judge step's `item` text (the format the eve hook builds). */
 function parseItem(item) {
   const out = { category: "", priority: "", draft_reply: "" };
@@ -122,21 +125,14 @@ function computeGate(rows, { GATE_MIN_RUNS, PASS_BAR }) {
       violations: judged.filter((r) => r.violation === true).length,
     };
   };
-  const arms = { warm: perArm("warm"), terse: perArm("terse") };
-  const ready = arms.warm.n >= GATE_MIN_RUNS && arms.terse.n >= GATE_MIN_RUNS;
+  const arms = Object.fromEntries(ARMS.map((a) => [a, perArm(a)]));
+  const ready = ARMS.every((a) => arms[a].n >= GATE_MIN_RUNS);
   let winner = null;
-  let blocked = null;
+  let blocked = [];
   if (ready) {
-    winner =
-      arms.warm.rate > arms.terse.rate
-        ? "warm"
-        : arms.terse.rate > arms.warm.rate
-          ? "terse"
-          : arms.warm.avg >= arms.terse.avg
-            ? "warm"
-            : "terse";
-    const loser = winner === "warm" ? "terse" : "warm";
-    if (arms[loser].rate < arms[winner].rate) blocked = loser;
+    // Winner = highest pass-rate (tie-break by average grade); block any arm strictly worse.
+    winner = [...ARMS].sort((x, y) => arms[y].rate - arms[x].rate || arms[y].avg - arms[x].avg)[0];
+    blocked = ARMS.filter((a) => a !== winner && arms[a].rate < arms[winner].rate);
   }
   // `alerted` kept for payload-shape parity with the local monitor (the client reads it).
   return { ready, minRuns: GATE_MIN_RUNS, bar: PASS_BAR, arms, winner, blocked, alerted: [] };

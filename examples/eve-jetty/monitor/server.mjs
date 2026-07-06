@@ -137,6 +137,9 @@ function parseVerdict(raw) {
 
 const DIM_KEYS = ["empathy", "actionability", "accuracy", "policy"];
 
+// The candidate arms the bandit chooses among (must match agent/instructions/arm.ts).
+const ARMS = ["warm", "terse", "balanced"];
+
 /** Flatten a trajectory into a clean row the dashboard renders. Handles both the
  *  simple_judge run shape and the ingest shape. */
 function rowFrom(t) {
@@ -223,21 +226,14 @@ function computeGate(rows) {
       violations: judged.filter((r) => r.violation === true).length,
     };
   };
-  const arms = { warm: perArm("warm"), terse: perArm("terse") };
-  const ready = arms.warm.n >= GATE_MIN_RUNS && arms.terse.n >= GATE_MIN_RUNS;
+  const arms = Object.fromEntries(ARMS.map((a) => [a, perArm(a)]));
+  const ready = ARMS.every((a) => arms[a].n >= GATE_MIN_RUNS);
   let winner = null;
-  let blocked = null;
+  let blocked = [];
   if (ready) {
-    winner =
-      arms.warm.rate > arms.terse.rate
-        ? "warm"
-        : arms.terse.rate > arms.warm.rate
-          ? "terse"
-          : arms.warm.avg >= arms.terse.avg
-            ? "warm"
-            : "terse";
-    const loser = winner === "warm" ? "terse" : "warm";
-    if (arms[loser].rate < arms[winner].rate) blocked = loser;
+    // Winner = highest pass-rate (tie-break by average grade); block any arm strictly worse.
+    winner = [...ARMS].sort((x, y) => arms[y].rate - arms[x].rate || arms[y].avg - arms[x].avg)[0];
+    blocked = ARMS.filter((a) => a !== winner && arms[a].rate < arms[winner].rate);
   }
   return { ready, minRuns: GATE_MIN_RUNS, bar: PASS_BAR, arms, winner, blocked, alerted: [...alertedArms] };
 }
@@ -246,30 +242,33 @@ function computeGate(rows) {
 // Slack: one alert per blocked arm per process — the "the eval paged us" beat.
 // ---------------------------------------------------------------------------
 const alertedArms = new Set();
-const ARM_LABEL = { warm: "v1 (warm)", terse: "v2 (terse)" };
+const ARM_LABEL = { warm: "v1 (warm)", terse: "v2 (terse)", balanced: "v3 (balanced)" };
 const pct = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
 
 async function maybeAlert(gate) {
-  if (!SLACK_TOKEN || !gate.ready || !gate.blocked || alertedArms.has(gate.blocked)) return;
-  alertedArms.add(gate.blocked); // set first — never double-post, even if the POST fails
-  const b = gate.arms[gate.blocked];
+  if (!SLACK_TOKEN || !gate.ready || !gate.blocked?.length) return;
   const w = gate.arms[gate.winner];
-  const text =
-    `🚦 *eve × Jetty release gate: BLOCK ${ARM_LABEL[gate.blocked]}* — ` +
-    `pass ${pct(b.rate)} (${b.passes}/${b.n}) vs ${ARM_LABEL[gate.winner]} ${pct(w.rate)} (${w.passes}/${w.n}), bar ${gate.bar.toFixed(1)}/5` +
-    (b.violations ? ` · ${b.violations} policy violation(s)` : "") +
-    `\nWinner ships: *${ARM_LABEL[gate.winner]}*. Runs: ${UI}/trajectory/${COLLECTION}/${TASK}`;
-  try {
-    const res = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${SLACK_TOKEN}` },
-      body: JSON.stringify({ channel: SLACK_CHANNEL, text, unfurl_links: false }),
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || `http ${res.status}`);
-    console.log(`🔔 Slack alert posted to ${SLACK_CHANNEL}: gate BLOCKED ${gate.blocked}`);
-  } catch (e) {
-    console.warn(`slack alert failed: ${e.message}`);
+  for (const arm of gate.blocked) {
+    if (alertedArms.has(arm)) continue;
+    alertedArms.add(arm); // set first — never double-post, even if the POST fails
+    const b = gate.arms[arm];
+    const text =
+      `🚦 *eve × Jetty release gate: BLOCK ${ARM_LABEL[arm] || arm}* — ` +
+      `pass ${pct(b.rate)} (${b.passes}/${b.n}) vs ${ARM_LABEL[gate.winner] || gate.winner} ${pct(w.rate)} (${w.passes}/${w.n}), bar ${gate.bar.toFixed(1)}/5` +
+      (b.violations ? ` · ${b.violations} policy violation(s)` : "") +
+      `\nWinner ships: *${ARM_LABEL[gate.winner] || gate.winner}*. Runs: ${UI}/trajectory/${COLLECTION}/${TASK}`;
+    try {
+      const res = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${SLACK_TOKEN}` },
+        body: JSON.stringify({ channel: SLACK_CHANNEL, text, unfurl_links: false }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || `http ${res.status}`);
+      console.log(`🔔 Slack alert posted to ${SLACK_CHANNEL}: gate BLOCKED ${arm}`);
+    } catch (e) {
+      console.warn(`slack alert failed: ${e.message}`);
+    }
   }
 }
 
