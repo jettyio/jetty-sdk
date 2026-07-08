@@ -11,14 +11,32 @@ The agent runs on **[eve](https://vercel.com/docs/eve)**, Vercel's filesystem-fi
 framework where an agent is a directory of files. **Jetty** grades every run and stores
 it, and **`@jetty/sdk`** orchestrates the comparison.
 
-**Online bandit agents on eve, graded live by Jetty** — an eve agent runs a 3-arm bandit
-(warm / terse / balanced) that steers its own traffic from live Jetty grades, while the release
-gate ships the winner and blocks the weak arms in real time:
+**In the video: an eve agent that A/B-tests itself, live.** One eve agent, three reply styles —
+**warm** (friendly and detailed), **terse** (one blunt line), and **balanced** (short but caring).
+We don't know which one serves customers best, so instead of choosing by hand, the agent tries all
+three and lets the grades decide:
 
-[![eve × Jetty online bandit demo](media/jetty-eve-demo.gif)](media/jetty-eve-demo.mov)
+[![eve × Jetty online bandit demo](media/jetty-eve-demo.gif)](media/jetty-eve-demo.mp4)
 
-▶️ Autoplays above — click for the full-resolution [video](media/jetty-eve-demo.mov), or see
+▶️ Autoplays above — click for the [full-resolution video](media/jetty-eve-demo.mp4), or see
 [`DEMO.md`](DEMO.md) to run it yourself.
+
+**How it works, in plain terms:**
+
+1. **The eve agent answers a support ticket** in one of the three styles (it picks the style itself,
+   per turn).
+2. **Jetty grades that reply 1–5** with an independent rubric the agent never sees, and stores the run.
+3. **A "bandit" shifts traffic toward what's working.** A [multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit)
+   treats each style as a slot-machine arm: it keeps "pulling" the arms that score well and eases off
+   the ones that don't. So as grades arrive, more and more replies use the leading style —
+   automatically, with no manual tuning.
+4. **A "release gate" calls it.** Once every style has enough graded runs, the gate marks one to
+   **ship** and **blocks** the rest — and a reply that breaks policy (e.g. promising a refund it can't)
+   is blocked no matter how nice it reads.
+
+The whole loop runs online — **answer → grade → traffic shifts → gate decides** — with no human in
+the middle. eve runs the agent; **Jetty is the independent grader, the durable store, and the live
+reward signal that closes the loop.**
 
 ```
 TICKETS: 5   GRADER: rubric (independent)

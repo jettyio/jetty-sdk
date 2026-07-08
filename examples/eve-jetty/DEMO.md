@@ -8,8 +8,8 @@ and blocks the weaker arms once each has enough judged runs.
 
 ![eve × Jetty online bandit demo](media/jetty-eve-demo.gif)
 
-*The 3-arm bandit exploring, the judge scoring each reply live, and the release gate shipping the
-winner — [full-resolution video](media/jetty-eve-demo.mov).*
+*The agent trying all three reply styles, Jetty scoring each one live, and the release gate shipping
+the winner — [full-resolution video](media/jetty-eve-demo.mp4).*
 
 One command starts the whole thing — you don't fire off each piece by hand:
 
