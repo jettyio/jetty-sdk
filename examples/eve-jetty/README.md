@@ -11,32 +11,41 @@ The agent runs on **[eve](https://vercel.com/docs/eve)**, Vercel's filesystem-fi
 framework where an agent is a directory of files. **Jetty** grades every run and stores
 it, and **`@jetty/sdk`** orchestrates the comparison.
 
-**In the video: an eve agent that A/B-tests itself, live.** One eve agent, three reply styles —
+**In the video: an eve agent that A/B/C-tests itself, live.** One eve agent, three reply styles —
 **warm** (friendly and detailed), **terse** (one blunt line), and **balanced** (short but caring).
-We don't know which one serves customers best, so instead of choosing by hand, the agent tries all
-three and lets the grades decide:
+We don't know which one serves customers best, so rather than pick by hand — or run a fixed offline
+test — the agent runs all three *online*, on live traffic, and lets **Jetty's grades** decide the winner:
 
 [![eve × Jetty online bandit demo](media/jetty-eve-demo.gif)](media/jetty-eve-demo.mp4)
 
 ▶️ Autoplays above — click for the [full-resolution video](media/jetty-eve-demo.mp4), or see
 [`DEMO.md`](DEMO.md) to run it yourself.
 
-**How it works, in plain terms:**
+**The online algorithm — a 3-arm bandit, in plain terms.** A
+[multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit) is how you run an experiment
+*while it's live* instead of splitting traffic by a fixed rule and waiting for a report. Each reply
+style is an "arm." Turn by turn:
 
-1. **The eve agent answers a support ticket** in one of the three styles (it picks the style itself,
-   per turn).
-2. **Jetty grades that reply 1–5** with an independent rubric the agent never sees, and stores the run.
-3. **A "bandit" shifts traffic toward what's working.** A [multi-armed bandit](https://en.wikipedia.org/wiki/Multi-armed_bandit)
-   treats each style as a slot-machine arm: it keeps "pulling" the arms that score well and eases off
-   the ones that don't. So as grades arrive, more and more replies use the leading style —
-   automatically, with no manual tuning.
-4. **A "release gate" calls it.** Once every style has enough graded runs, the gate marks one to
+1. **The agent picks a style and answers the ticket.** It plays one style for a short run of turns
+   (an *episode*), then re-checks the grades and picks again. Early on it spreads episodes evenly
+   across all three styles (*explore*); as grades pile up it increasingly plays the best-scoring one
+   (*exploit*), chosen by **Thompson sampling** — it draws a plausible score for each style from the
+   grades so far and plays the current leader, so a strong style earns more traffic without the
+   others being cut off before they've had a fair shot.
+2. **Jetty grades the reply 1–5** with an independent rubric the agent never sees, and stores the run
+   as a durable, labelled trajectory.
+3. **That grade is the reward signal.** The bandit reads the pass-rates back *from Jetty's labels* and
+   updates which style to favor. This is the crux: **the score Jetty produces is the thing the
+   algorithm optimizes** — not a number on a dashboard, the actual feedback that steers the agent.
+4. **A release gate calls the experiment.** Once every style has enough graded runs, it marks one to
    **ship** and **blocks** the rest — and a reply that breaks policy (e.g. promising a refund it can't)
    is blocked no matter how nice it reads.
 
-The whole loop runs online — **answer → grade → traffic shifts → gate decides** — with no human in
-the middle. eve runs the agent; **Jetty is the independent grader, the durable store, and the live
-reward signal that closes the loop.**
+**Jetty _is_ the experiment.** eve runs the agent and picks the arm; everything that makes this an
+*experiment* comes from Jetty — the **independent grader** that produces the reward, the **durable
+store** of every graded run (compare and audit any time, long after), and the **source of truth for
+the gate**. Take Jetty out and there's no signal to learn from and nothing to decide on: you're back
+to guessing. The loop is fully online and hands-off — **answer → grade → traffic shifts → gate decides.**
 
 ```
 TICKETS: 5   GRADER: rubric (independent)
@@ -135,7 +144,7 @@ cp .env.example .env && set -a && . ./.env && set +a
 npm run deploy-grader            # once — the same independent grader as Part 1
 
 # then three terminals:
-npx eve dev                      # 1. the agent — randomizes warm/terse per turn
+npx eve dev                      # 1. the agent — episodic bandit over warm/terse/balanced
 npm run grade-watch              # 2. the out-of-band grader
 npm run board                    # 3. the live scoreboard → http://localhost:4500
 ```
@@ -143,14 +152,14 @@ npm run board                    # 3. the live scoreboard → http://localhost:4
 Type a support ticket into the `eve dev` chat. What happens:
 
 1. **The agent picks an arm — and it's not a coin flip.** A per-turn dynamic-instructions
-   resolver (`agent/instructions/arm.ts`) runs a **Thompson-sampling bandit whose reward
-   signal is the live pass-rate read back from Jetty labels**. It explores 50/50 until each
-   arm has `BANDIT_MIN_PER_ARM` judged runs (matched to the monitor's release gate), then
-   routes traffic toward the winning arm. Grades steer the agent: Jetty isn't a scoreboard
-   here, it's the reward signal. (`JETTY_BANDIT=off` restores the fair coin for a
-   controlled experiment.)
+   resolver (`agent/instructions/arm.ts`) runs an **episodic Thompson-sampling bandit over the
+   three arms (warm / terse / balanced), rewarded by the live pass-rate read back from Jetty
+   labels**. It commits to one arm per short *episode*, explores evenly across the arms until each
+   has `BANDIT_MIN_PER_ARM` judged runs (matched to the monitor's release gate), then routes
+   traffic toward the winning arm. Grades steer the agent: Jetty isn't a scoreboard here, it's the
+   reward signal. (`JETTY_BANDIT=off` restores a fair coin for a controlled experiment.)
 2. **The run lands in Jetty immediately**, via a hook (`agent/hooks/ingest.ts`) that
-   ingests the finished turn as a trajectory tagged `eval.config=warm|terse`, still
+   ingests the finished turn as a trajectory tagged `eval.config=warm|terse|balanced`, still
    ungraded.
 3. **The grader scores it a beat later.** `grade-watch` finds ungraded runs, scores each
    with the *independent* Jetty grader, and writes `eval.grade` / `eval.pass` back onto
@@ -171,9 +180,10 @@ this.
 > "light up." `npm run board` is a 2-second-poll view built for the demo; the
 > trajectories it reads are the same durable records you can query later.
 
-> **Part 1 vs Part 2.** Part 1 is the clean, repeatable regression check (paired,
-> deterministic). Part 2 is the production-shaped online experiment (randomized, graded
-> async). Same agent, same independent grader — a different question.
+> **Part 1 vs Part 2.** Part 1 is the clean, repeatable regression check — a paired,
+> deterministic **A/B** over two fixed configs. Part 2 is the production-shaped **online A/B/C**:
+> three styles, a bandit steering live traffic from Jetty's grades, scored async. Same agent, same
+> independent grader — a different question.
 
 ### Part 2b: grade with a native `simple_judge` (no grade-watcher)
 
