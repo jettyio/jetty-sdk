@@ -1,6 +1,6 @@
 {
   "name": "@jetty/sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed TypeScript client for the Jetty AI/ML workflow platform",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,7 +13,11 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -23,7 +27,15 @@
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["jetty", "ai", "ml", "workflows", "sdk", "trajectory", "eval"],
+  "keywords": [
+    "jetty",
+    "ai",
+    "ml",
+    "workflows",
+    "sdk",
+    "trajectory",
+    "eval"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -31,9 +43,15 @@
     "directory": "packages/sdk"
   },
   "homepage": "https://github.com/jettyio/jetty-sdk/tree/main/packages/sdk#readme",
-  "bugs": { "url": "https://github.com/jettyio/jetty-sdk/issues" },
-  "publishConfig": { "access": "public" },
-  "engines": { "node": ">=18" },
+  "bugs": {
+    "url": "https://github.com/jettyio/jetty-sdk/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@types/node": "^22.15.3",
     "typescript": "^5.8.3",
