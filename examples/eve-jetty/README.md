@@ -149,7 +149,7 @@ run produces, with no keys, no network, and no spend.
 
 ## Run it for real
 
-The agent (`anthropic/claude-sonnet-4.6`, via eve + AI Gateway) drafts. An **independent
+The agent (`anthropic/claude-sonnet-5`, via eve + AI Gateway) drafts. An **independent
 rubric** grades each draft: a Jetty runbook running a deterministic Python scorer,
 reproducible and not written by the agent. Swap in an LLM judge by editing
 `grader/RUNBOOK.md`.

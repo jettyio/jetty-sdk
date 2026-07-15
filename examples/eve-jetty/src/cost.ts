@@ -21,6 +21,7 @@ export interface ModelPrice {
 
 // Illustrative list prices ($ / 1M tokens). Tune these to your real rates.
 const PRICES: Record<string, ModelPrice> = {
+  "anthropic/claude-sonnet-5": { inUsdPerM: 3, outUsdPerM: 15 },
   "anthropic/claude-sonnet-4.6": { inUsdPerM: 3, outUsdPerM: 15 },
   "anthropic/claude-opus-4.8": { inUsdPerM: 15, outUsdPerM: 75 },
   "openai/gpt-5.4-mini": { inUsdPerM: 0.4, outUsdPerM: 1.6 },

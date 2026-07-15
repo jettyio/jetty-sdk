@@ -19,7 +19,7 @@ import { JettyClient, JettyNotFoundError } from "@jetty/sdk";
 
 const COLLECTION = process.env.JETTY_COLLECTION ?? "jetty-vercel-demo";
 const TASK = process.env.JETTY_AGENT_TASK ?? "triage-live";
-const MODEL = process.env.JUDGE_MODEL ?? "anthropic/claude-sonnet-4.6";
+const MODEL = process.env.JUDGE_MODEL ?? "anthropic/claude-sonnet-5";
 const MODEL_PROVIDER = process.env.JUDGE_MODEL_PROVIDER ?? "openrouter";
 
 /**

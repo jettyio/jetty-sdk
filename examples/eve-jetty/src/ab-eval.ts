@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   const author = process.env.JETTY_AUTHOR ?? "eve@acme.example";
   const useTrialKeys = process.env.JETTY_USE_TRIAL_KEYS === "true";
   const eveUrl = process.env.EVE_URL ?? "http://127.0.0.1:2000";
-  const model = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-4.6";
+  const model = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
   const n = Number(process.env.EVAL_TICKETS ?? 2);
   const tickets = TICKETS.slice(0, Math.max(1, n));
 

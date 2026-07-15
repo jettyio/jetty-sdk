@@ -1,6 +1,6 @@
 {
   "name": "@jetty/eve",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Jetty × eve — an eve extension that live-grades an agent's turns with Jetty, steers a reply-style bandit from the grades, and reports eve evals into Jetty",
   "license": "MIT",
   "type": "module",
@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.reporter.json --noEmit"
   },
   "dependencies": {
-    "@jetty/sdk": "*",
+    "@jetty/sdk": "^0.3.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -12,7 +12,7 @@
 import { defineAgent } from "eve";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-4.6";
+const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
 const useOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
 
 const model = useOpenRouter
@@ -26,6 +26,6 @@ const model = useOpenRouter
 export default defineAgent({
   model,
   // An external (non-gateway) provider has no AI Gateway catalog metadata, so eve
-  // needs the model's context window for compaction. Claude Sonnet is ~200k tokens.
-  modelContextWindowTokens: useOpenRouter ? 200_000 : undefined,
+  // needs the model's context window for compaction. Claude Sonnet 5 is 1M tokens.
+  modelContextWindowTokens: useOpenRouter ? 1_000_000 : undefined,
 });
