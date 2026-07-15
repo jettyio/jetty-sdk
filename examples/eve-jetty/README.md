@@ -9,7 +9,12 @@ check wired in.
 
 The agent runs on **[eve](https://vercel.com/docs/eve)**, Vercel's filesystem-first
 framework where an agent is a directory of files. **Jetty** grades every run and stores
-it, and **`@jetty/sdk`** orchestrates the comparison.
+it, and **`@jetty/sdk`** orchestrates the comparison. The whole agent-side integration
+ships as an **eve [extension](https://eve.dev/docs/extensions)** —
+[`@jetty/eve`](../../packages/eve), mounted in one file
+([`agent/extensions/jetty.ts`](agent/extensions/jetty.ts)) — so any eve agent can adopt
+this loop with an `npm install` and a mount. See
+[the extension section below](#the-integration-is-an-eve-extension).
 
 **In the video: an eve agent that A/B/C-tests itself, live.** One eve agent, three reply styles —
 **warm** (friendly and detailed), **terse** (one blunt line), and **balanced** (short but caring).
@@ -88,6 +93,47 @@ OpenTelemetry-free:
 2. **The [external A/B harness](#run-it-for-real)** (`src/ab-eval.ts`) — drives the agent
    over `eve/client` and grades each run with an independent Jetty rubric.
 
+## The integration is an eve extension
+
+Everything the *agent* does with Jetty ships as [`@jetty/eve`](../../packages/eve), an eve
+[**extension**](https://eve.dev/docs/extensions) — a reusable package of eve capabilities
+mounted under `agent/extensions/`. This agent's entire Jetty integration is one file:
+
+```ts
+// agent/extensions/jetty.ts — the file name is the namespace
+import jetty from "@jetty/eve";
+
+export default jetty({
+  collection: process.env.JETTY_COLLECTION ?? "",   // empty → everything no-ops
+  task: process.env.JETTY_AGENT_TASK ?? "triage-live",
+  judgeMode: process.env.JUDGE_MODE === "simple_judge" ? "simple_judge" : "ingest",
+  arms: { warm: "…", terse: "…", balanced: "…" },   // Acme's styles; the extension owns the bandit
+  contract: "Respond with ONLY the triage JSON object { … }",
+  // bandit pacing + token prices — see the file
+});
+```
+
+What the mount buys, and which extension feature each piece exercises:
+
+| Contribution | Composes as | Extension feature |
+|---|---|---|
+| `hooks/ingest.ts` — every turn → Jetty (ingest or inline `simple_judge`) | `jetty__ingest` | namespaced **hooks** |
+| `instructions/arm.ts` — the per-turn bandit style | `jetty__arm` | namespaced **dynamic instructions** |
+| `tools/experiment.ts` — ask the agent "how's your experiment going?" | `jetty__experiment` | namespaced **tools** |
+| The mount call validates `arms`, pacing, prices (zod) | — | **`defineExtension` config**, bound once at mount |
+| Arm handoff resolver → hook (was a `globalThis` map) | — | **`defineState`**, auto-scoped per package |
+| `agent/hooks/log-experiment.ts` narrows the tool's result | — | **typed tool results** (`toolResultFrom` + `@jetty/eve/tools`) |
+
+Two things deliberately stay in the *agent*: the model + channel config (extensions can't
+declare agent config or sandboxes — that's the consumer's job) and the arm *styles*
+(the extension owns the experiment machinery; what's being tested is yours). To gate or
+replace a contribution, turn the mount into a directory
+(`agent/extensions/jetty/extension.ts` + an override slot) — see
+[overrides](https://eve.dev/docs/extensions#overrides).
+
+With no `JETTY_COLLECTION` the whole extension degrades gracefully (fair-coin styles, no
+ingest, tool reports "not configured"), so the agent directory still runs without Jetty.
+
 ## See it now (offline, no keys)
 
 ```bash
@@ -152,13 +198,15 @@ npm run board                    # 3. the live scoreboard → http://localhost:4
 Type a support ticket into the `eve dev` chat. What happens:
 
 1. **The agent picks an arm — and it's not a coin flip.** A per-turn dynamic-instructions
-   resolver (`agent/instructions/arm.ts`) runs an **episodic Thompson-sampling bandit over the
-   three arms (warm / terse / balanced), rewarded by the live pass-rate read back from Jetty
-   labels**. It commits to one arm per short *episode*, explores evenly across the arms until each
+   resolver (the mounted extension's `instructions/arm.ts`, composed as `jetty__arm`) runs an
+   **episodic Thompson-sampling bandit over the three arms (warm / terse / balanced), rewarded by
+   the live pass-rate read back from Jetty labels**. The arms themselves are config: this agent
+   passes them at the mount site ([`agent/extensions/jetty.ts`](agent/extensions/jetty.ts)). It
+   commits to one arm per short *episode*, explores evenly across the arms until each
    has `BANDIT_MIN_PER_ARM` judged runs (matched to the monitor's release gate), then routes
    traffic toward the winning arm. Grades steer the agent: Jetty isn't a scoreboard here, it's the
    reward signal. (`JETTY_BANDIT=off` restores a fair coin for a controlled experiment.)
-2. **The run lands in Jetty immediately**, via a hook (`agent/hooks/ingest.ts`) that
+2. **The run lands in Jetty immediately**, via the extension's hook (`jetty__ingest`) that
    ingests the finished turn as a trajectory tagged `eval.config=warm|terse|balanced`, still
    ungraded.
 3. **The grader scores it a beat later.** `grade-watch` finds ungraded runs, scores each
@@ -263,13 +311,15 @@ dashboard](https://blog.jetty.io).)
 
 The most eve-idiomatic integration is a **`Jetty()` eval reporter** that drops into
 `evals.config.ts` exactly where eve's built-in `Braintrust(...)` reporter goes, so every
-`eve eval` result lands in Jetty as a durable, labelled trajectory. This example ships it
-in [`src/jetty-reporter.ts`](src/jetty-reporter.ts) (it implements eve's `EvalReporter`):
+`eve eval` result lands in Jetty as a durable, labelled trajectory. It ships in the
+[`@jetty/eve`](../../packages/eve) package as `@jetty/eve/reporter` (it implements eve's
+`EvalReporter`; reporters are eval-runner config, not an agent capability, so it's a plain
+export rather than an extension contribution):
 
 ```ts
 // evals/evals.config.ts
 import { defineEvalConfig } from "eve/evals";
-import { Jetty } from "../src/jetty-reporter.js";   // implements eve's EvalReporter
+import { Jetty } from "@jetty/eve/reporter";   // implements eve's EvalReporter
 
 export default defineEvalConfig({
   reporters: [Jetty()],   // collection/project from JETTY_COLLECTION / JETTY_PROJECT
@@ -289,8 +339,9 @@ The reporter never fails a run: if Jetty is unreachable it logs a warning and `e
 continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to commit.
 
 > Needs the mise trajectory-ingestion endpoint
-> (`POST /api/v1/trajectories/{collection}/{name}/ingest`). It graduates into a standalone
-> `@jetty/eve` package later; here it lives in the example so you can read and run it.
+> (`POST /api/v1/trajectories/{collection}/{name}/ingest`). The reporter lives in
+> [`packages/eve/reporter`](../../packages/eve/reporter) — readable source, one
+> `ingestTrajectory` call.
 
 ## Files
 
@@ -299,15 +350,18 @@ continues. With no `JETTY_COLLECTION` set it no-ops, so `evals/` is safe to comm
 | `start.mjs` | `npm start`, the one-command launcher: validates `.env`, deploys the judge, runs the agent + monitor together, clean Ctrl-C. See [`DEMO.md`](DEMO.md). |
 | `agent/instructions.md` | The eve agent's always-on system prompt (the JSON contract). |
 | `agent/agent.ts` | The eve agent's runtime config (`defineAgent`). |
+| `agent/extensions/jetty.ts` | **The whole Jetty integration** — mounts the [`@jetty/eve`](../../packages/eve) extension and binds its config (arms, judge mode, bandit pacing, prices) from the shared `.env`. |
+| `agent/hooks/log-experiment.ts` | Consumer-side typed tool results: narrows `jetty__experiment` output via `toolResultFrom` + `@jetty/eve/tools`. |
 | `agent/channels/eve.ts` | The HTTP channel the harness drives (auth config). |
 | `src/tickets.ts` | The Part 1 eval cases + the two batch configs (warm/terse), plus the live-only tickets and policy-trap tickets the feeder sends (3× the rotation). |
 | `src/agent-prompt.ts` | Builds the per-config message and parses the triage JSON back out. |
 | `evals/evals.config.ts` | Wires the native `Jetty()` reporter into `eve eval`. |
 | `evals/triage.eval.ts` | A native eve eval; its result is reported to Jetty. |
-| `src/jetty-reporter.ts` | The `Jetty()` eve `EvalReporter` (pushes results via `ingestTrajectory`). |
+| [`packages/eve`](../../packages/eve) → `reporter/` | The `Jetty()` eve `EvalReporter`, imported as `@jetty/eve/reporter` (pushes results via `ingestTrajectory`). |
 | `src/ab-eval.ts` | `npm run ab-eval`, the live A/B over eve + Jetty (Part 1). |
-| `agent/instructions/arm.ts` | Part 2 — episodic arm selection for live `eve dev`: a Thompson bandit over three arms (warm / terse / balanced) that commits one arm per episode, rewarded by live Jetty pass-rates (dynamic instructions). |
-| `agent/hooks/ingest.ts` | Part 2 — live ingest hook; pushes each `eve dev` turn into Jetty as a trajectory (and in judge mode, labels grade + dimensions + policy). |
+| [`packages/eve`](../../packages/eve) → `extension/instructions/arm.ts` | Part 2 — episodic arm selection for live `eve dev` (`jetty__arm`): a Thompson bandit over the configured arms that commits one arm per episode, rewarded by live Jetty pass-rates (dynamic instructions). |
+| [`packages/eve`](../../packages/eve) → `extension/hooks/ingest.ts` | Part 2 — live ingest hook (`jetty__ingest`); pushes each `eve dev` turn into Jetty as a trajectory (and in judge mode, labels grade + dimensions + policy). |
+| [`packages/eve`](../../packages/eve) → `extension/tools/experiment.ts` | Part 2 — the `jetty__experiment` tool: the model reads its own scoreboard back from Jetty labels. |
 | `src/grade-watcher.ts` | Part 2 — `npm run grade-watch`, the out-of-band grader: scores ungraded runs, labels them. |
 | `src/deploy-judge.ts` | Part 2b — `npm run deploy-judge`, makes `triage-live` a native `simple_judge` task with the multi-dimension rubric (`JUDGE_MODE=simple_judge`, no grade-watcher). |
 | `src/judge-smoke.ts` | Part 2b — `npm run judge-smoke`, demo-prep sanity check: judges a canned policy-violating triage, asserts the verdict shape. |

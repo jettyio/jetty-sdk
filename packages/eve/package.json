@@ -1,0 +1,49 @@
+{
+  "name": "@jetty/eve",
+  "version": "0.1.0",
+  "description": "Jetty × eve — an eve extension that live-grades an agent's turns with Jetty, steers a reply-style bandit from the grades, and reports eve evals into Jetty",
+  "license": "MIT",
+  "type": "module",
+  "eve": {
+    "extension": "./extension"
+  },
+  "files": [
+    "extension",
+    "reporter",
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.mjs"
+    },
+    "./reporter": {
+      "types": "./dist/reporter/index.d.ts",
+      "default": "./dist/reporter/index.js"
+    }
+  },
+  "scripts": {
+    "build": "eve extension build && tsc -p tsconfig.reporter.json",
+    "prepare": "eve extension build && tsc -p tsconfig.reporter.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.reporter.json --noEmit"
+  },
+  "dependencies": {
+    "@jetty/sdk": "*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "eve": "^0.24.3",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "eve": "^0.24.3"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

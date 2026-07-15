@@ -192,15 +192,17 @@ arrives"). Within a second a row appears on the board tagged `warm` or `terse` a
 "grading…"; a beat later it flips to a green pass or red fail. Type a few and the
 warm-vs-terse pass-rates pull apart.
 
-What each piece does:
+What each piece does (the agent-side pieces are contributions of the mounted
+[`@jetty/eve` extension](../../packages/eve) — the mount in
+[`agent/extensions/jetty.ts`](agent/extensions/jetty.ts) is where they're configured):
 
-- **`agent/instructions/arm.ts`** — a dynamic-instructions resolver that fires on
-  `turn.started` (server-side, once per turn) and applies the warm or terse style.
-  Because it lives in the agent, *every* turn you type is A/B'd, not just scripted ones.
+- **`@jetty/eve` → `instructions/arm.ts`** — a dynamic-instructions resolver that fires on
+  `turn.started` (server-side, once per turn) and applies one of the configured arm styles.
+  Because it's mounted into the agent, *every* turn you type is A/B'd, not just scripted ones.
   It's a **Thompson-sampling bandit rewarded by the live pass-rates read back from Jetty
   labels**: 50/50 while each arm has fewer than `BANDIT_MIN_PER_ARM` judged runs, then
   traffic shifts to the winning arm. `JETTY_BANDIT=off` restores the fair coin.
-- **`agent/hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
+- **`@jetty/eve` → `hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
   finished turn (the triage JSON + token usage), and calls `ingestTrajectory` to record it
   in Jetty as an **ungraded** trajectory tagged `eval.config`.
 - **`src/grade-watcher.ts`** (`npm run grade-watch`) — polls for ungraded runs, scores each
@@ -250,8 +252,7 @@ fails the run despite a high empathy score: the independent-grader moment.
 | [`src/cost.ts`](src/cost.ts) | Estimates per-run cost from eve token usage (eve has no dollar-cost field). |
 | [`src/eval.ts`](src/eval.ts) | `aggregate()` (pass-rate/grade/cost) + `renderVerdict()` (the table). |
 | [`grader/RUNBOOK.md`](grader/RUNBOOK.md) | The independent grader: a deterministic Python rubric. |
-| [`agent/instructions/arm.ts`](agent/instructions/arm.ts) | **Part 2** — per-turn warm/terse arm selection for live `eve dev`. |
-| [`agent/hooks/ingest.ts`](agent/hooks/ingest.ts) | **Part 2** — ingests each `eve dev` turn into Jetty as a trajectory. |
+| [`agent/extensions/jetty.ts`](agent/extensions/jetty.ts) | **Part 2** — mounts the [`@jetty/eve`](../../packages/eve) extension: the bandit arm resolver, the ingest/judge hook, and the `jetty__experiment` tool, configured in one place. |
 | [`src/grade-watcher.ts`](src/grade-watcher.ts) | **Part 2** — the out-of-band grader (`npm run grade-watch`). |
 | [`src/deploy-judge.ts`](src/deploy-judge.ts) | **Part 2b** — makes `triage-live` a native `simple_judge` task (`npm run deploy-judge`). |
 | [`src/live-board.ts`](src/live-board.ts) | **Part 2** — the live scoreboard (`npm run board`). |

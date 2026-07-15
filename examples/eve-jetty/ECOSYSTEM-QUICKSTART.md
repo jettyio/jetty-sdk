@@ -21,11 +21,28 @@ forget to open; the [Jetty blog](https://blog.jetty.io) makes the case.)
 ## Quickstart
 
 ```bash
-npm install @jetty/sdk
+npm install @jetty/sdk @jetty/eve
 ```
 
-There's no `eve add tooling jetty` package. Jetty plugs in through its SDK. The
-complete worked example lives at
+Jetty plugs into an eve agent as a mounted
+[**extension**](https://eve.dev/docs/extensions) — `@jetty/eve` — plus the plain
+`@jetty/sdk` for harness-side orchestration. One mount file gives the agent live
+ingest of every turn into Jetty, an experiment bandit steered by Jetty grades, and a
+tool that reads the scoreboard back:
+
+```ts
+// agent/extensions/jetty.ts — the file name is the namespace
+import jetty from "@jetty/eve";
+
+export default jetty({
+  collection: process.env.JETTY_COLLECTION ?? "",   // empty → extension no-ops
+  task: "triage-live",
+  judgeMode: "simple_judge",                        // grade inline with a native Jetty judge
+  arms: { warm: "…", terse: "…" },                  // your reply styles; the bandit is included
+});
+```
+
+The complete worked example lives at
 [`jettyio/jetty-sdk` → `examples/eve-jetty`](https://github.com/jettyio/jetty-sdk/tree/main/examples/eve-jetty).
 
 ## Overview
@@ -56,10 +73,11 @@ const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grad
 Each grade is a Jetty trajectory: the inputs, outputs, grade, and cost, ready to
 replay. Compare the `eval.*` labels across configs to see which version slipped.
 
-> **Native reporter (next).** The tighter integration is a `Jetty()` eval reporter
-> that drops into eve's `evals.config.ts` exactly where the built-in `Braintrust(...)`
-> reporter goes, so every `eve eval` result lands in Jetty automatically. It ships once
-> Jetty's trajectory-ingestion endpoint lands; the SDK harness above works today.
+> **Native reporter.** For eve's own evals, a `Jetty()` eval reporter drops into
+> `evals.config.ts` exactly where the built-in `Braintrust(...)` reporter goes, so every
+> `eve eval` result lands in Jetty automatically:
+> `import { Jetty } from "@jetty/eve/reporter"` →
+> `defineEvalConfig({ reporters: [Jetty()] })`.
 
 ## Configure
 
@@ -77,7 +95,8 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 > The SDK never logs your token. Tokens resolve from a constructor arg, then
 > `JETTY_API_TOKEN`, then `~/.config/jetty/token`.
 
-Requires `@jetty/sdk` 0.2.0+ (for `gradeWithJetty`) and `eve` 0.16+.
+Requires `@jetty/sdk` 0.2.0+ (for `gradeWithJetty`) and, for the `@jetty/eve`
+extension, `eve` 0.24+ on Node 24+ (mounted extensions landed in eve 0.22.3).
 
 ## What Jetty captures
 

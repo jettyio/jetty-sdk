@@ -3,13 +3,13 @@
     "target": "ES2022",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
     "types": ["node"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true
+    "declaration": true,
+    "outDir": "dist/reporter"
   },
-  "include": ["src", "agent"]
+  "include": ["reporter/**/*.ts"]
 }

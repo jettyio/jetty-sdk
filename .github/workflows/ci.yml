@@ -13,7 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         # The SDK runtime targets Node 18+, but the dev test runner (vitest 4)
-        # requires Node 20+, so CI runs on 20/22/24.
+        # requires Node 20+, so CI runs on 20/22/24. Scoped to the SDK workspace:
+        # the eve workspaces (@jetty/eve + examples/eve-jetty) need Node 24 and
+        # are covered by the `workspaces` job below.
         node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
@@ -22,10 +24,26 @@ jobs:
           node-version: ${{ matrix.node }}
       # `npm install` (not `npm ci`) on purpose: we don't commit a lockfile, so
       # Linux regenerates the platform-correct optional native deps each run.
+      - run: npm install -w @jetty/sdk --no-audit --no-fund
+      - run: npm run build -w @jetty/sdk
+      - run: npm run typecheck -w @jetty/sdk
+      - run: npm test -w @jetty/sdk
+
+  workspaces:
+    name: All workspaces (Node 24)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Full install: @jetty/eve's `prepare` runs `eve extension build` + tsc,
+      # which needs Node 24 (eve >= 0.24).
       - run: npm install --no-audit --no-fund
-      # Build first: the example workspace's typecheck resolves @jetty/sdk types
+      # Build first: the example workspaces' typecheck resolves @jetty/sdk types
       # from its built dist/, so the package must be compiled before typecheck.
       - run: npm run build
+      - run: npm run build -w @jetty/eve
       - run: npm run typecheck
       - run: npm test
 
@@ -36,7 +54,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: npm install --no-audit --no-fund
       - run: npm run build -w @jetty/sdk
       - run: npm publish -w @jetty/sdk --dry-run

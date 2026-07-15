@@ -11,7 +11,7 @@
  */
 import { defineEvalConfig } from "eve/evals";
 
-import { Jetty } from "../src/jetty-reporter.js";
+import { Jetty } from "@jetty/eve/reporter";
 
 export default defineEvalConfig({
   reporters: [Jetty()],

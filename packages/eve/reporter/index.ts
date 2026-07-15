@@ -9,13 +9,16 @@
  *
  *   // evals/evals.config.ts
  *   import { defineEvalConfig } from "eve/evals";
- *   import { Jetty } from "../src/jetty-reporter.js";
+ *   import { Jetty } from "@jetty/eve/reporter";
  *   export default defineEvalConfig({ reporters: [Jetty()] });
  *
- * It's the in-`eve eval` counterpart to the external A/B harness (`src/ab-eval.ts`):
- * there Jetty is the independent *grader*; here Jetty is the durable *scoreboard*
- * for eve's own scores. No OpenTelemetry, no trace pipeline — eve's per-eval
- * scores are pushed straight to a single ingest call.
+ * It's the `eve eval`-side counterpart to the mounted extension: the extension
+ * makes Jetty the independent *grader* of live turns; this reporter makes Jetty
+ * the durable *scoreboard* for eve's own scores. No OpenTelemetry, no trace
+ * pipeline — eve's per-eval scores are pushed straight to a single ingest call.
+ *
+ * (Reporters are eval-runner config, not an agent capability, so this ships as
+ * a plain package export rather than an extension contribution.)
  *
  * Requires `JETTY_API_TOKEN` (+ `JETTY_COLLECTION`). Point it at a local mise
  * with `JETTY_API_URL=http://localhost:8000`. The reporter never fails an eval

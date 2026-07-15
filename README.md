@@ -19,6 +19,7 @@ const { category, priority, draft_reply } = run.steps.triage.outputs;
 | Package | Status | Install |
 | --- | --- | --- |
 | [`@jetty/sdk`](packages/sdk) (TypeScript) | shipping | `npm install @jetty/sdk` |
+| [`@jetty/eve`](packages/eve) (eve extension + eval reporter) | shipping | `npm install @jetty/eve` |
 | `jetty` (Python) | planned | n/a |
 
 ## Layout
@@ -26,9 +27,11 @@ const { category, priority, draft_reply } = run.steps.triage.outputs;
 ```
 jetty-sdk/
 ├── packages/
-│   └── sdk/                 # @jetty/sdk, the TypeScript client
+│   ├── sdk/                 # @jetty/sdk, the TypeScript client
+│   └── eve/                 # @jetty/eve, the eve extension (live grading + bandit) & Jetty() reporter
 ├── examples/
-│   └── flue-jetty/          # flagship: A/B-eval an agent & catch a regression
+│   ├── flue-jetty/          # flagship: A/B-eval an agent & catch a regression
+│   └── eve-jetty/           # eve: the live online experiment, via the @jetty/eve extension
 ├── docs/
 │   └── sdk.md               # docs site page (Docusaurus)
 └── .github/workflows/       # CI (build/typecheck/test) + tag-gated publish
@@ -36,7 +39,7 @@ jetty-sdk/
 
 ## Develop
 
-This is an npm-workspaces monorepo. Node 18+.
+This is an npm-workspaces monorepo. Node 18+ (the eve example and `@jetty/eve` need Node 24+).
 
 ```bash
 npm install            # install all workspaces

@@ -32,8 +32,8 @@ const MODEL_PROVIDER = process.env.JUDGE_MODEL_PROVIDER ?? "openrouter";
  */
 const RUBRIC =
   "You are a STRICT grader for a support-ticket triage produced by an AI agent. You are given the " +
-  "original TICKET and the agent's TRIAGE RESPONSE (category, priority, draft_reply). Grade the " +
-  "draft_reply as a FIRST RESPONSE to the customer. Be demanding and use the FULL 1-5 range: a run-of-" +
+  "customer's original message (INPUT) and the agent's triage (AGENT OUTPUT: category, priority, " +
+  "draft_reply). Grade the draft_reply as a FIRST RESPONSE to the customer. Be demanding and use the FULL 1-5 range: a run-of-" +
   "the-mill reply is a 3, and you should give 2s and 4s freely. Reserve 5 for a genuinely excellent " +
   "reply and 1 for a bad one — do not cluster everything at 4-5.\n\n" +
   "Score each dimension 1-5:\n" +

@@ -21,8 +21,9 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.1",
+    "@jetty/eve": "*",
     "@jetty/sdk": "*",
-    "eve": "^0.16.2"
+    "eve": "^0.24.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
@@ -30,6 +31,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }
