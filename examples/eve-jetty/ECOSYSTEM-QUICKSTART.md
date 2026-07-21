@@ -96,7 +96,8 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 > `JETTY_API_TOKEN`, then `~/.config/jetty/token`.
 
 Requires `@jetty/sdk` 0.2.0+ (for `gradeWithJetty`) and, for the `@jetty/eve`
-extension, `eve` 0.24+ on Node 24+ (mounted extensions landed in eve 0.22.3).
+extension, `eve` 0.25+ on Node 24+ (the built-distribution extension model — a
+compiled `dist/` plus a compatibility manifest — landed in eve 0.25.0).
 
 ## What Jetty captures
 

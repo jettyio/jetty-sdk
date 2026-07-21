@@ -1,15 +1,16 @@
 {
   "name": "@jetty/eve",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Jetty × eve — an eve extension that live-grades an agent's turns with Jetty, steers a reply-style bandit from the grades, and reports eve evals into Jetty",
   "license": "MIT",
   "type": "module",
   "eve": {
-    "extension": "./extension"
+    "extension": {
+      "source": "./extension",
+      "dist": "./dist/extension"
+    }
   },
   "files": [
-    "extension",
-    "reporter",
     "dist"
   ],
   "exports": {
@@ -37,11 +38,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
-    "eve": "^0.24.3",
+    "eve": "0.26.0",
     "typescript": "^5.8.3"
   },
   "peerDependencies": {
-    "eve": "^0.24.3"
+    "eve": "*"
   },
   "engines": {
     "node": ">=24"

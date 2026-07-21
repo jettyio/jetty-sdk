@@ -23,7 +23,7 @@
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@jetty/eve": "*",
     "@jetty/sdk": "*",
-    "eve": "^0.24.3"
+    "eve": "^0.26.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

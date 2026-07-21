@@ -89,6 +89,7 @@ end-to-end demo of everything above.
 
 ## Requirements
 
-- eve ≥ 0.24 (peer dependency — your app provides it), Node ≥ 24
+- eve ≥ 0.25 (peer dependency — your app provides it; the extension ships a
+  compiled `dist/` + compatibility manifest that eve validates at mount), Node ≥ 24
 - A Jetty API token (`JETTY_API_TOKEN`); the ingest endpoint
   (`POST /api/v1/trajectories/{collection}/{task}/ingest`) on the target mise
