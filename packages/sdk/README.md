@@ -92,7 +92,6 @@ const run = await jetty.runAndWait("acme", "triage", { ticket }, {
   pollMs: 2000,            // poll interval (default 2s)
   timeoutMs: 1_800_000,    // overall budget (default 30m)
   onPoll: (t) => console.log(t.status),
-  useTrialKeys: true,      // optional run flags…
 });
 
 // Synchronous: server holds the connection. Beware Cloudflare 524 on long runs.
@@ -131,7 +130,6 @@ const { grade, trajectoryId } = await gradeWithJetty<{ total: number; pass: bool
   "triage-grader",
   {
     files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
-    useTrialKeys: true,                  // grade on Jetty's free trial, no key
     labels: (g) => ({                    // labels can read the grade
       "eval.config": "v1",
       "eval.grade": g.total.toFixed(2),
@@ -143,8 +141,8 @@ const { grade, trajectoryId } = await gradeWithJetty<{ total: number; pass: bool
 // across configs to catch a regression before a customer does.
 ```
 
-It accepts everything `runAndWait` does (`pollMs`, `timeoutMs`, `useTrialKeys`,
-`onPoll`, …) plus:
+It accepts everything `runAndWait` does (`pollMs`, `timeoutMs`, `onPoll`, …)
+plus:
 
 | Option | Default | Purpose |
 | --- | --- | --- |

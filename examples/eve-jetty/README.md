@@ -172,7 +172,7 @@ then a styled **`report.html`** opens in your browser (verdict, per-run breakdow
 trajectory links).
 
 **No provider key?** The grading runs on Jetty's **free trial** (10 runs,
-auto-activated). Deploy without a key and run with `JETTY_USE_TRIAL_KEYS=true`. The local
+auto-activated) — no flag needed, the trial applies automatically. The local
 eve agent still needs a model credential: an AI Gateway key, or set `OPENROUTER_API_KEY`
 so `agent/agent.ts` routes it through OpenRouter directly. The offline `npm run demo`
 needs none.

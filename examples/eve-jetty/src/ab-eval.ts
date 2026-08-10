@@ -34,7 +34,6 @@ async function main(): Promise<void> {
   const collection = process.env.JETTY_COLLECTION ?? "jetty-vercel-demo";
   const gradeTask = process.env.JETTY_GRADE_TASK ?? "triage-grader";
   const author = process.env.JETTY_AUTHOR ?? "eve@acme.example";
-  const useTrialKeys = process.env.JETTY_USE_TRIAL_KEYS === "true";
   const eveUrl = process.env.EVE_URL ?? "http://127.0.0.1:2000";
   const model = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
   const n = Number(process.env.EVAL_TICKETS ?? 2);
@@ -64,7 +63,6 @@ async function main(): Promise<void> {
         files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
         initParams: { vars: { prompt: "Run the grader." } },
         pollMs: 4000,
-        useTrialKeys,
         author,
         parseGrade: (bytes) => {
           const g = JSON.parse(new TextDecoder().decode(bytes)) as Grade;

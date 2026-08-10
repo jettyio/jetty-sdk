@@ -168,8 +168,8 @@ signup step) whose model calls run on **Jetty's keys**. So you can run the
 unset ANTHROPIC_API_KEY
 npm run deploy-grader
 
-# grade on the trial
-JETTY_USE_TRIAL_KEYS=true npx flue run eval --target node --input '{"tickets":2}'
+# grade on the trial — applied automatically when the collection has no key
+npx flue run eval --target node --input '{"tickets":2}'
 ```
 
 The trial covers **server-side Jetty runs** (the grader). The **Flue agent runs

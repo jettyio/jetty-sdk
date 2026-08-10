@@ -35,8 +35,8 @@ Two secrets, both in one `.env`:
 > **Why not just a Jetty key?** Jetty's free trial keys cover the *server-side judge*, but
 > the agent itself runs locally and always needs a model credential. One OpenRouter key is
 > the simplest way to power both. (Have a Vercel AI Gateway key instead? Set
-> `AI_GATEWAY_API_KEY` and the agent uses that; drop `OPENROUTER_API_KEY` and add
-> `JETTY_USE_TRIAL_KEYS=true` to grade on the trial.)
+> `AI_GATEWAY_API_KEY` and the agent uses that; drop `OPENROUTER_API_KEY` and
+> grading falls back to the trial automatically.)
 
 Node 20+.
 

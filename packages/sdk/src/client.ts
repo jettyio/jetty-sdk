@@ -169,7 +169,6 @@ export class JettyClient {
   ): FormData {
     const form = new FormData();
     form.append("init_params", JSON.stringify(initParams ?? {}));
-    if (opts?.useTrialKeys) form.append("use_trial_keys", "true");
     if (opts?.secretParams) form.append("secret_params", JSON.stringify(opts.secretParams));
     if (opts?.subscriptionCredential) {
       form.append("subscription_credential", opts.subscriptionCredential);
@@ -204,10 +203,9 @@ export class JettyClient {
     collection: string,
     task: string,
     initParams?: Record<string, unknown>,
-    useTrialKeys?: boolean,
     opts?: RunOptions,
   ): Promise<WorkflowResponse> {
-    const form = this.buildRunForm(initParams, { useTrialKeys, ...opts });
+    const form = this.buildRunForm(initParams, opts);
     return this.http.request(`/api/v1/run/${this.seg(collection)}/${this.seg(task)}`, {
       method: "POST",
       body: form,
@@ -223,10 +221,9 @@ export class JettyClient {
     collection: string,
     task: string,
     initParams?: Record<string, unknown>,
-    useTrialKeys?: boolean,
     opts?: RunOptions,
   ): Promise<WorkflowResponse> {
-    const form = this.buildRunForm(initParams, { useTrialKeys, ...opts });
+    const form = this.buildRunForm(initParams, opts);
     return this.http.request(`/api/v1/run-sync/${this.seg(collection)}/${this.seg(task)}`, {
       method: "POST",
       body: form,
@@ -270,7 +267,7 @@ export class JettyClient {
 
     const started = files?.length
       ? await this.runWithFiles(collection, task, initParams, files, runOpts)
-      : await this.runWorkflow(collection, task, initParams, runOpts.useTrialKeys, runOpts);
+      : await this.runWorkflow(collection, task, initParams, runOpts);
     if (!started.workflow_id) {
       throw new JettyError("Run did not return a workflow_id; cannot poll for completion.");
     }

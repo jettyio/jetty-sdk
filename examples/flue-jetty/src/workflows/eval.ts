@@ -42,8 +42,6 @@ export default defineWorkflow({
     const collection = process.env.JETTY_COLLECTION ?? "jontesteroni11";
     const gradeTask = process.env.JETTY_GRADE_TASK ?? "triage-grader";
     const author = process.env.JETTY_AUTHOR ?? "eval@acme.example";
-    // Grade on Jetty's free trial (no API key / key-push) when this is set.
-    const useTrialKeys = process.env.JETTY_USE_TRIAL_KEYS === "true";
     const n = input.tickets ?? Number(process.env.EVAL_TICKETS ?? 2);
     const tickets = TICKETS.slice(0, Math.max(1, n));
 
@@ -64,7 +62,6 @@ export default defineWorkflow({
           files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
           initParams: { vars: { prompt: "Run the grader." } },
           pollMs: 4000,
-          useTrialKeys,
           author,
           parseGrade: (bytes) => {
             const g = JSON.parse(new TextDecoder().decode(bytes)) as Grade;
