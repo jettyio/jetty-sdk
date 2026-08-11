@@ -54,8 +54,8 @@ async function main(): Promise<void> {
     console.log("[env] pushed: ANTHROPIC_API_KEY");
   } else {
     console.log(
-      "[env] no ANTHROPIC_API_KEY — that's fine: run the grader on Jetty's free trial " +
-        "with JETTY_USE_TRIAL_KEYS=true (10 free runs, no key needed).",
+      "[env] no ANTHROPIC_API_KEY — that's fine: the grader runs on Jetty's free trial " +
+        "automatically (10 free runs, no key needed).",
     );
   }
 

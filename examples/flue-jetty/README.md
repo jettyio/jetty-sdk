@@ -63,7 +63,7 @@ and then a styled **`report.html`** opens in your browser (verdict, per-run
 breakdown, trajectory links).
 
 **No Anthropic key?** The grading runs on Jetty's **free trial** (10 runs,
-auto-activated). Deploy without a key and run with `JETTY_USE_TRIAL_KEYS=true`.
+auto-activated) — no flag needed, the trial applies automatically.
 The local Flue agent still needs your key; the offline `npm run demo` needs none.
 See [`TUTORIAL.md`](TUTORIAL.md#run-it-on-jettys-free-trial).
 

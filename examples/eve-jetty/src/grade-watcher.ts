@@ -33,10 +33,10 @@ const labelMap = (t: Trajectory): Record<string, string> =>
 /** Grade one ingested agent trajectory and write the grade back onto it. */
 async function gradeOne(
   jetty: JettyClient,
-  opts: { collection: string; agentTask: string; gradeTask: string; author: string; useTrialKeys: boolean },
+  opts: { collection: string; agentTask: string; gradeTask: string; author: string },
   t: Trajectory,
 ): Promise<void> {
-  const { collection, agentTask, gradeTask, author, useTrialKeys } = opts;
+  const { collection, agentTask, gradeTask, author } = opts;
   // ingest_trajectory stores the case as init_params.input + steps.eval.outputs.output.
   const ticket = t.init_params?.input ?? {};
   const evalOutputs = (t.steps?.eval?.outputs ?? {}) as Record<string, unknown>;
@@ -47,7 +47,6 @@ async function gradeOne(
     files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
     initParams: { vars: { prompt: "Run the grader." } },
     pollMs: 3000,
-    useTrialKeys,
     author,
     parseGrade: (bytes) => {
       const g = JSON.parse(new TextDecoder().decode(bytes)) as Grade;
@@ -66,12 +65,11 @@ async function main(): Promise<void> {
   const agentTask = process.env.JETTY_AGENT_TASK ?? "triage-live";
   const gradeTask = process.env.JETTY_GRADE_TASK ?? "triage-grader";
   const author = process.env.JETTY_AUTHOR ?? "eve-grader@acme.example";
-  const useTrialKeys = process.env.JETTY_USE_TRIAL_KEYS === "true";
   const intervalMs = Number(process.env.GRADE_POLL_MS ?? 3000);
   if (!collection) throw new Error("Set JETTY_COLLECTION (and JETTY_API_TOKEN) — see .env.example.");
 
   const jetty = new JettyClient();
-  const opts = { collection, agentTask, gradeTask, author, useTrialKeys };
+  const opts = { collection, agentTask, gradeTask, author };
   const inFlight = new Set<string>();
   console.log(
     `⚖️  grading ${collection}/${agentTask} via ${gradeTask}, polling every ${intervalMs}ms. Ctrl-C to stop.`,

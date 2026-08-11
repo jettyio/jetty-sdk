@@ -3,6 +3,18 @@
 All notable changes to `@jetty/sdk` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Removed
+
+- **Breaking:** the `useTrialKeys` run option and the positional `useTrialKeys`
+  argument on `runWorkflow` / `runWorkflowSync`. Trial-key injection is
+  automatic and eligibility-based server-side — the flag was never required and
+  is no longer sent. New signatures:
+  `runWorkflow(collection, task, initParams?, opts?)` and
+  `runWorkflowSync(collection, task, initParams?, opts?)`. Callers that passed
+  a boolean in the fourth position should drop it; trial behavior is unchanged.
+
 ## [0.2.0] - 2026-06-23
 
 ### Added

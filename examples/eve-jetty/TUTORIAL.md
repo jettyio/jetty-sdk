@@ -138,11 +138,11 @@ to each Jetty trajectory.
 
 ### Run it on Jetty's free trial
 
-Jetty gives every collection a **free trial** (10 runs, auto-activated) on Jetty's keys, so
-you can run the **grading** with no provider key:
+Jetty gives every collection a **free trial** (10 runs, auto-activated) on Jetty's keys.
+When the collection has no provider key configured, grading uses the trial automatically:
 
 ```bash
-JETTY_USE_TRIAL_KEYS=true EVAL_TICKETS=2 npm run ab-eval
+EVAL_TICKETS=2 npm run ab-eval
 ```
 
 The trial covers **server-side Jetty runs** (the grader). The eve agent runs on your

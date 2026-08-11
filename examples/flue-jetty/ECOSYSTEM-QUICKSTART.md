@@ -52,7 +52,6 @@ export default defineWorkflow({
     //    upload, run the grader, read the grade, and label, in one call.
     const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
       files: [{ filename: "case.json", data: draft.text }],
-      useTrialKeys: true,                          // grade on Jetty's free trial, no provider key
       labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
     });
 
@@ -71,7 +70,6 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 | `JETTY_API_TOKEN` | yes | Jetty API token (also read from `~/.config/jetty/token`). |
 | `JETTY_COLLECTION` | yes | Collection that owns the grading task. |
 | `JETTY_GRADE_TASK` | yes | The grading runbook (e.g. `triage-grader`). |
-| `JETTY_USE_TRIAL_KEYS` | no | Grade on Jetty's free trial, no provider key (see below). |
 | `ANTHROPIC_API_KEY` | for the agent | The Flue agent runs on your machine, so it needs a model key. |
 
 > **Credentials.** Put anything sensitive in `secretParams`, which the server
@@ -102,8 +100,8 @@ or summary instead. Treat trajectory storage like any other logging surface.
 ## Run on Jetty's free trial (no API key)
 
 Jetty grading runs server-side, and every collection gets a free trial: 10 runs,
-auto-activated, on Jetty's keys. Set `JETTY_USE_TRIAL_KEYS=true` and you need no
-provider key to grade. Sonnet and most models are covered; Opus-class is excluded.
+auto-activated, on Jetty's keys. With no provider key configured, grading uses the
+trial automatically. Sonnet and most models are covered; Opus-class is excluded.
 
 The trial covers server-side Jetty runs. The Flue agent runs on your machine, so
 the agent still uses your own model key. You can exercise Jetty's grading and

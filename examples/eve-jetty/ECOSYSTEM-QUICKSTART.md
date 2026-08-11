@@ -65,7 +65,6 @@ const turn = await (await eve.session().send(prompt)).result();
 //    upload, run the grader, read the grade, and label, in one call.
 const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
   files: [{ filename: "case.json", data: turn.message ?? "" }],
-  useTrialKeys: true,                          // grade on Jetty's free trial, no provider key
   labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
 });
 ```
@@ -86,7 +85,6 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 | `JETTY_API_TOKEN` | yes | Jetty API token (also read from `~/.config/jetty/token`). |
 | `JETTY_COLLECTION` | yes | Collection that owns the grading task. |
 | `JETTY_GRADE_TASK` | yes | The grading runbook (e.g. `triage-grader`). |
-| `JETTY_USE_TRIAL_KEYS` | no | Grade on Jetty's free trial, no provider key (see below). |
 | `EVE_URL` | for the agent | Where the eve agent is reachable (`npx eve dev` serves `127.0.0.1:2000`). |
 | `AI_GATEWAY_API_KEY` / `VERCEL_OIDC_TOKEN` | for the agent | eve resolves models through AI Gateway, so the agent needs one of these. |
 
@@ -123,8 +121,8 @@ storage like any other logging surface.
 ## Run on Jetty's free trial (no API key)
 
 Jetty grading runs server-side, and every collection gets a free trial: 10 runs,
-auto-activated, on Jetty's keys. Set `JETTY_USE_TRIAL_KEYS=true` and you need no
-provider key to grade. Sonnet and most models are covered; Opus-class is excluded.
+auto-activated, on Jetty's keys. With no provider key configured, grading uses the
+trial automatically. Sonnet and most models are covered; Opus-class is excluded.
 
 The trial covers the server-side Jetty grader. The eve agent runs on your machine (or
 on Vercel), so the agent still uses its own AI Gateway credential. You can exercise

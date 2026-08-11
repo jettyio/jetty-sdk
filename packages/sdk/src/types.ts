@@ -91,10 +91,13 @@ export interface WorkflowResponse {
   [key: string]: unknown;
 }
 
-/** Options accepted by the run endpoints beyond `init_params`. */
+/**
+ * Options accepted by the run endpoints beyond `init_params`.
+ *
+ * Note: trial-key injection is automatic and eligibility-based server-side —
+ * there is no flag to request it.
+ */
 export interface RunOptions {
-  /** Use the collection's trial keys instead of its configured provider keys. */
-  useTrialKeys?: boolean;
   /** Secret params merged server-side and scrubbed from the trajectory. */
   secretParams?: Record<string, unknown>;
   /** Run the agent on a linked subscription's quota (JET-351). */

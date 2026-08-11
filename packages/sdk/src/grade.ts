@@ -81,7 +81,6 @@ function resultFileKeys(trajectory: Trajectory): string[] {
  *   "triage-grader",
  *   {
  *     files: [{ filename: "case.json", data: JSON.stringify({ ticket, triage }) }],
- *     useTrialKeys: true,                       // grade on Jetty's free trial
  *     labels: (g) => ({                         // labels can read the grade
  *       "eval.config": "v1",
  *       "eval.grade": g.total.toFixed(2),
