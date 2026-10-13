@@ -21,12 +21,17 @@ export interface ModelPrice {
 
 // Illustrative list prices ($ / 1M tokens). Tune these to your real rates.
 const PRICES: Record<string, ModelPrice> = {
-  "anthropic/claude-sonnet-5": { inUsdPerM: 3, outUsdPerM: 15 },
+  // Anthropic / OpenAI list prices, 2026-10-09.
+  "anthropic/claude-sonnet-5.5": { inUsdPerM: 2, outUsdPerM: 10 },
+  "anthropic/claude-sonnet-5": { inUsdPerM: 2, outUsdPerM: 10 },
   "anthropic/claude-sonnet-4.6": { inUsdPerM: 3, outUsdPerM: 15 },
-  "anthropic/claude-opus-4.8": { inUsdPerM: 15, outUsdPerM: 75 },
+  "anthropic/claude-haiku-5.5": { inUsdPerM: 0.1, outUsdPerM: 0.5 },
+  "anthropic/claude-opus-5.5": { inUsdPerM: 4, outUsdPerM: 20 },
+  "anthropic/claude-opus-4.8": { inUsdPerM: 5, outUsdPerM: 25 },
+  "openai/gpt-6.1-sol": { inUsdPerM: 2, outUsdPerM: 10 },
   "openai/gpt-5.4-mini": { inUsdPerM: 0.4, outUsdPerM: 1.6 },
 };
-const DEFAULT_PRICE: ModelPrice = { inUsdPerM: 3, outUsdPerM: 15 };
+const DEFAULT_PRICE: ModelPrice = { inUsdPerM: 2, outUsdPerM: 10 };
 
 /** Sum input/output tokens across a turn's `step.completed` events and price them. */
 export function estimateCostFromEvents(

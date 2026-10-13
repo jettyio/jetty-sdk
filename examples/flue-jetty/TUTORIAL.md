@@ -265,7 +265,7 @@ monorepo. From there, copy the orchestration pattern from
   the SDK in your own project instead, see
   [Using `@jetty/sdk` in your own project](#using-jettysdk-in-your-own-project).
 - **`grader produced no /app/results files`** — the grader must (a) run on a model
-  the claude-code runtime supports (use `claude-sonnet-4-6`, not haiku), (b) keep
+  the claude-code runtime supports (use `claude-sonnet-5-5`, not haiku), (b) keep
   the `secrets: ANTHROPIC_API_KEY` block in its frontmatter so the key reaches the
   sandbox, and (c) write to **`/app/results/`** (the directory Jetty collects).
   All three are already set in `grader/RUNBOOK.md`.

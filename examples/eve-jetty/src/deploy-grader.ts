@@ -21,7 +21,7 @@ function buildWorkflow(): unknown {
   return {
     init_params: {
       agent: "claude-code",
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5-5",
       model_provider: "anthropic",
       snapshot: "python312-uv",
       instruction: runbook,
