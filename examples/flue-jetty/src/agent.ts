@@ -15,7 +15,7 @@ export interface Triage {
 
 /** One triage agent. The per-config style lives in the prompt (see `triagePrompt`). */
 export const triageAgent = defineAgent(() => ({
-  model: process.env.FLUE_MODEL ?? "anthropic/claude-sonnet-4-6",
+  model: process.env.FLUE_MODEL ?? "anthropic/claude-sonnet-5-5",
 }));
 
 /** Build the triage prompt for a config × ticket: shared JSON contract + style + the ticket. */

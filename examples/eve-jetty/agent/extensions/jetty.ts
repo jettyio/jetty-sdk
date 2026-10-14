@@ -20,15 +20,18 @@
  */
 import jetty from "@jetty/eve";
 
-const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
+const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5.5";
 
 // Illustrative $/1M tokens (mirrors src/cost.ts). Tune to your real rates.
 const PRICES: Record<string, { in: number; out: number }> = {
-  "anthropic/claude-sonnet-5": { in: 3, out: 15 },
+  "anthropic/claude-sonnet-5.5": { in: 2, out: 10 },
+  "anthropic/claude-sonnet-5": { in: 2, out: 10 },
   "anthropic/claude-sonnet-4.6": { in: 3, out: 15 },
-  "anthropic/claude-opus-4.8": { in: 15, out: 75 },
+  "anthropic/claude-haiku-5.5": { in: 0.1, out: 0.5 },
+  "anthropic/claude-opus-5.5": { in: 4, out: 20 },
+  "anthropic/claude-opus-4.8": { in: 5, out: 25 },
 };
-const price = PRICES[MODEL] ?? { in: 3, out: 15 };
+const price = PRICES[MODEL] ?? { in: 2, out: 10 };
 
 export default jetty({
   collection: process.env.JETTY_COLLECTION ?? "",

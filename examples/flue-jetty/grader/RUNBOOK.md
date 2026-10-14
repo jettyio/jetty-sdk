@@ -2,7 +2,7 @@
 version: "2.1.0"
 evaluation: rubric
 agent: claude-code
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 model_provider: anthropic
 snapshot: python312-uv
 secrets:
