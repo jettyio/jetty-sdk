@@ -55,16 +55,17 @@ the trajectory. The grade comes back as a row you can label and compare.
 import { Client } from "eve/client";
 import { JettyClient, gradeWithJetty } from "@jetty/sdk";
 
-const eve = new Client({ host: process.env.EVE_URL ?? "http://127.0.0.1:2000" });
+const eve = new Client({ baseUrl: process.env.EVE_URL ?? "http://127.0.0.1:2000" });
 const jetty = new JettyClient(); // JETTY_API_TOKEN from env or ~/.config/jetty/token
 
 // 1. eve runs the agent (it owns the loop).
-const turn = await (await eve.session().send(prompt)).result();
+const { delivery } = await eve.sessions.create({ message: prompt });
+const turn = await delivery.result();
 
 // 2. Jetty grades it server-side, with a grader that isn't the author —
 //    upload, run the grader, read the grade, and label, in one call.
 const { grade, trajectoryId } = await gradeWithJetty(jetty, "acme", "triage-grader", {
-  files: [{ filename: "case.json", data: turn.message ?? "" }],
+  files: [{ filename: "case.json", data: turn.reply ?? "" }],
   labels: (g) => ({ "eval.grade": String(g.total) }), // labels can read the grade
 });
 ```
@@ -94,8 +95,8 @@ replay. Compare the `eval.*` labels across configs to see which version slipped.
 > `JETTY_API_TOKEN`, then `~/.config/jetty/token`.
 
 Requires `@jetty/sdk` 0.2.0+ (for `gradeWithJetty`) and, for the `@jetty/eve`
-extension, `eve` 0.25+ on Node 24+ (the built-distribution extension model — a
-compiled `dist/` plus a compatibility manifest — landed in eve 0.25.0).
+extension, `eve` 1.0.0+ on Node 24+ (this release builds the format-3
+compatibility manifest with eve 1.0.0).
 
 ## What Jetty captures
 
@@ -104,7 +105,7 @@ compiled `dist/` plus a compatibility manifest — landed in eve 0.25.0).
 | Agent output (the draft) | The input the grading runbook scores |
 | Grade (1–5) | Label `eval.grade` on the trajectory |
 | Pass / fail vs. the bar | Label `eval.pass` |
-| Per-run cost (estimated from `step.completed` token usage) | Label `eval.cost_est_usd` |
+| Per-run cost (estimated from model `usage.recorded` token usage) | Label `eval.cost_est_usd` |
 | Which agent config / version | Label `eval.config` |
 | The whole graded run | A [trajectory](https://docs.jetty.io): inputs, outputs, steps, replayable |
 

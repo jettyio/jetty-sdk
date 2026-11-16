@@ -17,6 +17,20 @@ npm run typecheck    # all workspaces
 - `packages/sdk` — the `@jetty/sdk` TypeScript client. Source in `src/`, tests in `tests/`.
 - `examples/flue-jetty` — the flagship example (A/B agent eval); depends on the workspace `@jetty/sdk`.
 
+## Eve extension
+
+The eve integration requires Node 24+ and builds with pinned `eve@1.0.0`.
+For an extension-only change, avoid installing every example workspace:
+
+```bash
+cd packages/eve
+npm install --workspaces=false --ignore-scripts
+npm run verify       # extension + reporter typecheck, build, offline tests
+```
+
+See `packages/eve/README.md` for compatibility and minimum-release-age guidance.
+The build must generate the format-3 manifest; never edit it by hand.
+
 ## Conventions
 
 - **ESM only**, `NodeNext` module resolution. Use `.js` extensions in relative

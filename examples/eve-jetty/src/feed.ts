@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const concurrency = Math.max(1, Number(process.env.FEED_CONCURRENCY ?? 4));
   const tickets = LIVE_TICKETS.slice(0, Math.max(1, n));
 
-  const eve = new Client({ host: eveUrl });
+  const eve = new Client({ baseUrl: eveUrl });
   console.log(
     `📨 feeding ${tickets.length} ticket(s) × ${rounds} round(s) into ${eveUrl}, ${concurrency} at a time…`,
   );
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   // doesn't sink the rest of the batch.
   const sendOne = async (ticket: Ticket, round: number): Promise<void> => {
     try {
-      const session = eve.session();
+      const { session } = await eve.sessions.create();
       const response = await session.send(`${ticket.subject}\n\n${ticket.body}`);
       const turn = await response.result();
       console.log(`  [${round}/${rounds}] ${ticket.id}: turn ${turn.status}`);

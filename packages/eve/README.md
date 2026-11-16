@@ -13,8 +13,9 @@ Two independent pieces, use either or both:
      out-of-band grader — or judged inline by a native Jetty `simple_judge` task
      (`judgeMode: "simple_judge"`), which also writes `eval.grade` / `eval.pass` /
      `eval.dim.*` / `eval.policy_violation`.
-   - **`instructions/arm`** — a per-turn dynamic-instructions resolver running an
-     episodic Thompson-sampling bandit over your configured reply-style `arms`,
+   - **`hooks/arm`** chooses an arm once at `turn.started`; **`instructions/arm`**
+     reuses it before every model call in that turn. The episodic Thompson-sampling
+     bandit runs over your configured reply-style `arms`,
      rewarded by the pass-rates read back from Jetty labels. Jetty's grades are the
      signal the agent optimizes, not a dashboard.
    - **`tools/experiment`** — a tool the model can call to report the experiment
@@ -47,19 +48,30 @@ see `extension/extension.ts` for the full schema (bandit pacing, pass bar, token
 prices). With an empty `collection` every contribution degrades to a no-op or a fair
 coin, so the agent runs without Jetty credentials.
 
-Cross-contribution bookkeeping (which arm a turn played, the turn's captured
-input/reply/usage) uses eve's `defineState`, auto-scoped to this package — no globals,
-no collisions with the consuming agent.
+The selected arm uses durable `defineState`, scoped to each extension mount and
+session. On a completed `turn.settled`, input, reply text and model token usage
+come from eve's committed `SessionView` selectors. Failed/cancelled turns clear
+arm state without grading. Ingest receipts remain keyed by session ID + turn ID;
+inline judging retains verified labels and the hard policy-violation floor.
 
 ## Typed tool results & overrides
 
 Narrow the experiment tool's result in your own hook:
 
 ```ts
+import { defineHook } from "eve/hooks";
+import { call } from "eve/events";
 import { toolResultFrom } from "eve/tools";
 import { experiment } from "@jetty/eve/tools";
 
-const match = toolResultFrom(event.data.result, experiment); // typed output or undefined
+export default defineHook({
+  events: {
+    "call.settled"(event, ctx) {
+      const match = toolResultFrom(call(ctx.view, event.data.callId), experiment);
+      if (match) console.log(match.output);
+    },
+  },
+});
 ```
 
 To gate or replace a contribution, author your mount as a directory
@@ -89,7 +101,22 @@ end-to-end demo of everything above.
 
 ## Requirements
 
-- eve ≥ 0.25 (peer dependency — your app provides it; the extension ships a
-  compiled `dist/` + compatibility manifest that eve validates at mount), Node ≥ 24
+- eve ≥ 1.0.0 (peer dependency — your app provides it; builds with eve 1.0.0
+  generate the format-3 compatibility manifest), Node ≥ 24
 - A Jetty API token (`JETTY_API_TOKEN`); the ingest endpoint
   (`POST /api/v1/trajectories/{collection}/{task}/ingest`) on the target mise
+
+## Develop
+
+From `packages/eve`, install without the example workspaces and verify:
+
+```bash
+npm install --workspaces=false --ignore-scripts
+npm run verify
+```
+
+If a local npm minimum-release-age policy blocks the freshly released, pinned
+`eve@1.0.0`, use `--min-release-age=0` for this install after reviewing that release.
+`verify` typechecks the extension and reporter, builds the distribution and runs
+focused offline tests. Never hand-edit the generated manifest. The reporter uses
+v1 eval `data`/`reply` output and omits scores for assertions whose scorer failed.
