@@ -196,13 +196,14 @@ What each piece does (the agent-side pieces are contributions of the mounted
 [`@jetty/eve` extension](../../packages/eve) — the mount in
 [`agent/extensions/jetty.ts`](agent/extensions/jetty.ts) is where they're configured):
 
-- **`@jetty/eve` → `instructions/arm.ts`** — a dynamic-instructions resolver that fires on
-  `turn.started` (server-side, once per turn) and applies one of the configured arm styles.
+- **`@jetty/eve` → `hooks/arm.ts` + `instructions/arm.ts`** — the hook chooses an arm
+  at `turn.started` (server-side, once per turn); the dynamic-instructions resolver
+  reapplies that arm before every model call.
   Because it's mounted into the agent, *every* turn you type is A/B'd, not just scripted ones.
   It's a **Thompson-sampling bandit rewarded by the live pass-rates read back from Jetty
   labels**: 50/50 while each arm has fewer than `BANDIT_MIN_PER_ARM` judged runs, then
   traffic shifts to the winning arm. `JETTY_BANDIT=off` restores the fair coin.
-- **`@jetty/eve` → `hooks/ingest.ts`** — a hook that fires on `turn.completed`, assembles the
+- **`@jetty/eve` → `hooks/ingest.ts`** — a hook that fires on completed `turn.settled`, reads the
   finished turn (the triage JSON + token usage), and calls `ingestTrajectory` to record it
   in Jetty as an **ungraded** trajectory tagged `eval.config`.
 - **`src/grade-watcher.ts`** (`npm run grade-watch`) — polls for ungraded runs, scores each

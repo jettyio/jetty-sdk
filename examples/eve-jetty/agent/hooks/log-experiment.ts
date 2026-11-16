@@ -9,13 +9,14 @@
  * model reading its own scoreboard.
  */
 import { defineHook } from "eve/hooks";
+import { call } from "eve/events";
 import { toolResultFrom } from "eve/tools";
 import { experiment } from "@jetty/eve/tools";
 
 export default defineHook({
   events: {
-    "action.result"(event) {
-      const match = toolResultFrom(event.data.result, experiment);
+    "call.settled"(event, ctx) {
+      const match = toolResultFrom(call(ctx.view, event.data.callId), experiment);
       if (!match) return;
       const out = match.output;
       if (out.running && out.arms) {

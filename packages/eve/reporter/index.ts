@@ -83,7 +83,10 @@ class JettyReporter implements EvalReporter {
     if (this.disabled || !this.client) return;
 
     const scores: Record<string, number> = {};
-    for (const assertion of result.assertions) scores[assertion.name] = assertion.score;
+    for (const assertion of result.assertions) {
+      // A scorer failure has no measurement; don't fabricate a zero grade.
+      if (assertion.score !== undefined) scores[assertion.name] = assertion.score;
+    }
 
     const labels: Record<string, string> = {
       "eve.verdict": result.verdict,
@@ -92,10 +95,10 @@ class JettyReporter implements EvalReporter {
     if (result.error) labels["eve.error"] = result.error.slice(0, 280);
 
     const payload: IngestTrajectoryPayload = {
-      // The eve session id makes a re-run of the same session idempotent.
-      trajectory_id: result.result.sessionId,
+      // A session is idempotent; without one, let Jetty assign a fresh trajectory ID.
+      ...(result.result.sessionId === undefined ? {} : { trajectory_id: result.result.sessionId }),
       eval_id: result.id,
-      output: result.result.output,
+      output: result.result.data === undefined ? (result.result.reply ?? null) : result.result.data,
       status: result.verdict === "failed" ? "failed" : "completed",
       scores,
       labels,
@@ -113,7 +116,9 @@ class JettyReporter implements EvalReporter {
         payload,
       );
       this.ingested++;
-      console.log(`[jetty-reporter] ${result.id} → ${this.collection}/${this.project} (${trajectory_id})`);
+      console.log(
+        `[jetty-reporter] ${result.id} → ${this.collection}/${this.project} (${trajectory_id})`,
+      );
     } catch (err) {
       console.warn(`[jetty-reporter] Failed to ingest eval "${result.id}": ${msg(err)}`);
     }

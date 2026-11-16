@@ -1,14 +1,9 @@
 /**
  * Live ingest hook — every finished turn lands in Jetty.
  *
- * eve has no single "turn finished, here's the text + token usage" callback —
- * `turn.completed` carries only a turnId. So we accumulate across the turn's
- * stream events (in the extension's durable session state, shared with the arm
- * resolver) and flush on completion:
- *   - message.received  → the user's message
- *   - message.completed → the assistant's reply
- *   - step.completed    → token usage (eve reports tokens, not dollars)
- * On turn.completed we parse the reply's JSON (if any), estimate cost, read
+ * On a completed `turn.settled`, read the committed session snapshot for the
+ * consumed input, text reply and model usage (eve reports tokens, not dollars).
+ * Parse the reply's JSON (if any), estimate cost, read
  * back which arm this turn ran, and either ingest an UNGRADED trajectory (the
  * default — an out-of-band grader scores it a beat later, so grading never
  * blocks the chat) or, with `judgeMode: "simple_judge"`, run the configured
@@ -24,14 +19,18 @@ import type { JettyClient } from "@jetty/sdk";
 import extension from "../extension";
 import { jettyClient, msg, writeLabelsVerified } from "../lib/jetty";
 import { extractJson, parseVerdict } from "../lib/json";
-import { addTurnUsage, patchTurn, takeTurn } from "../lib/state";
+import { takeTurn } from "../lib/state";
+import { captureTurn } from "../lib/capture";
 
 /**
  * Format the judged content: the user's message, then the agent's output —
  * `key: value` lines when the reply is a JSON object (so a structured contract
  * like a triage arrives as clean fields), the raw text otherwise.
  */
-function judgeItem(input: { subject: string; body: string }, output: Record<string, unknown>): string {
+function judgeItem(
+  input: { subject: string; body: string },
+  output: Record<string, unknown>,
+): string {
   const fields = Object.entries(output)
     .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join("\n");
@@ -97,34 +96,25 @@ async function runJudge(
 
 export default defineHook({
   events: {
-    "message.received"(event) {
-      patchTurn(event.data.turnId, { input: event.data.message });
-    },
-    "step.completed"(event) {
-      addTurnUsage(
-        event.data.turnId,
-        event.data.usage?.inputTokens ?? 0,
-        event.data.usage?.outputTokens ?? 0,
-      );
-    },
-    "message.completed"(event) {
-      if (event.data.message) patchTurn(event.data.turnId, { reply: event.data.message });
-    },
-    async "turn.completed"(event, ctx) {
+    async "turn.settled"(event, ctx) {
       const turnId = event.data.turnId;
-      const t = takeTurn(turnId);
-      const jetty = jettyClient();
-      if (!jetty || !t?.reply) return;
-
-      const { collection, task, author, judgeMode, priceInPerMTok, priceOutPerMTok } =
-        extension.config;
-      const output = extractJson(t.reply) ?? { text: t.reply };
-      const body = t.input ?? "";
-      const input = { subject: body.split("\n")[0]?.slice(0, 80) ?? "", body };
-      const cost = (t.inTok / 1e6) * priceInPerMTok + (t.outTok / 1e6) * priceOutPerMTok;
-      const arm = t.arm ?? "unknown";
+      const selected = takeTurn(turnId);
+      if (event.data.outcome !== "completed") return;
 
       try {
+        const jetty = jettyClient();
+        if (!jetty) return;
+        const t = { ...captureTurn(ctx.view, turnId), arm: selected?.arm };
+        if (!t.reply) return;
+
+        const { collection, task, author, judgeMode, priceInPerMTok, priceOutPerMTok } =
+          extension.config;
+        const output = extractJson(t.reply) ?? { text: t.reply };
+        const body = t.input ?? "";
+        const input = { subject: body.split("\n")[0]?.slice(0, 80) ?? "", body };
+        const cost = (t.inTok / 1e6) * priceInPerMTok + (t.outTok / 1e6) * priceOutPerMTok;
+        const arm = t.arm ?? "unknown";
+
         if (judgeMode === "simple_judge") {
           await runJudge(jetty, input, output, arm, cost);
         } else {
@@ -148,7 +138,9 @@ export default defineHook({
           );
         }
       } catch (err) {
-        console.warn(`[@jetty/eve] ${judgeMode} failed (chat unaffected): ${msg(err)}`);
+        console.warn(
+          `[@jetty/eve] ${extension.config.judgeMode} failed (chat unaffected): ${msg(err)}`,
+        );
       }
     },
   },

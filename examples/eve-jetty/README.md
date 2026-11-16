@@ -297,7 +297,7 @@ dashboard](https://blog.jetty.io).)
   "cheaper but worse" is obvious at a glance.
 
 > **A note on cost.** Flue handed us a dollar cost per run directly. eve reports token
-> usage on its `step.completed` events but no dollar figure, so this example *estimates*
+> usage on its model `usage.recorded` events but no dollar figure, so this example *estimates*
 > cost from tokens and a small per-model price table (`src/cost.ts`) and labels it
 > `eval.cost_est_usd`. Tune the prices to your real rates.
 

@@ -17,7 +17,7 @@
  * Requires a running eve agent (`npx eve dev`), JETTY_API_TOKEN, JETTY_COLLECTION,
  * and a deployed `triage-grader` (run `npm run deploy-grader` once).
  */
-import { Client } from "eve/client";
+import { Client, type SessionStreamEvent } from "eve/client";
 import { JettyClient, gradeWithJetty } from "@jetty/sdk";
 import { CONFIGS, TICKETS } from "./tickets.js";
 import { triagePrompt, extractTriage } from "./agent-prompt.js";
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   const n = Number(process.env.EVAL_TICKETS ?? 2);
   const tickets = TICKETS.slice(0, Math.max(1, n));
 
-  const eve = new Client({ host: eveUrl });
+  const eve = new Client({ baseUrl: eveUrl });
   const jetty = new JettyClient();
 
   const results: RunResult[] = [];
@@ -47,14 +47,17 @@ async function main(): Promise<void> {
     for (const ticket of tickets) {
       // A fresh eve session per case so conversations don't leak; the one agent
       // serves both configs, with the warm/terse style injected per prompt.
-      const session = eve.session();
+      const { session } = await eve.sessions.create();
       const response = await session.send(triagePrompt(config, ticket));
+      // Delivery results no longer embed events; streams are independent receipt reads.
+      const events: SessionStreamEvent[] = [];
+      for await (const event of response.stream()) events.push(event);
       const turn = await response.result();
       if (turn.status === "failed") {
         throw new Error(`eve turn failed for ${config.id}/${ticket.id} (status=failed)`);
       }
-      const triage = extractTriage(turn.message ?? "");
-      const costUsd = estimateCostFromEvents(turn.events, model);
+      const triage = extractTriage(turn.reply ?? "");
+      const costUsd = estimateCostFromEvents(events, model);
 
       // Grade the draft server-side and record it on the trajectory — upload, run
       // the grader, read grade.json, and label, in one SDK call. The labels can read

@@ -2,15 +2,15 @@
  * Estimate per-run cost from an eve turn's token usage.
  *
  * Flue handed us a dollar cost directly (`response.usage.cost.total`). eve does NOT:
- * it reports token usage on `step.completed` events but exposes no cost field. So we
+ * it reports token usage on `usage.recorded` events but exposes no cost field. So we
  * derive an estimate from the turn's tokens and a small per-model price table — enough
  * to keep the verdict table's "cheaper but worse" signal honest. The harness labels it
  * `eval.cost_est_usd` (note the `_est_`). Tune PRICES to your provider / AI Gateway rates.
  *
- * eve's `step.completed.data.usage` is `{ inputTokens?, outputTokens?, cacheReadTokens?,
+ * eve's `usage.recorded.data.usage` is `{ inputTokens?, outputTokens?, cacheReadTokens?,
  * cacheWriteTokens? }`. We price input + output and ignore cache tokens for simplicity.
  */
-import type { HandleMessageStreamEvent } from "eve/client";
+import type { SessionStreamEvent } from "eve/client";
 
 export interface ModelPrice {
   /** USD per 1M input tokens. */
@@ -28,16 +28,16 @@ const PRICES: Record<string, ModelPrice> = {
 };
 const DEFAULT_PRICE: ModelPrice = { inUsdPerM: 3, outUsdPerM: 15 };
 
-/** Sum input/output tokens across a turn's `step.completed` events and price them. */
+/** Sum input/output tokens across a turn's model `usage.recorded` events and price them. */
 export function estimateCostFromEvents(
-  events: readonly HandleMessageStreamEvent[] | undefined,
+  events: readonly SessionStreamEvent[] | undefined,
   model: string,
 ): number {
   const price = PRICES[model] ?? DEFAULT_PRICE;
   let input = 0;
   let output = 0;
   for (const ev of events ?? []) {
-    if (ev.type !== "step.completed") continue;
+    if (ev.type !== "usage.recorded" || !ev.data.owner || !("runId" in ev.data.owner)) continue;
     input += ev.data.usage?.inputTokens ?? 0;
     output += ev.data.usage?.outputTokens ?? 0;
   }

@@ -7,10 +7,11 @@
  *   - hooks/ingest        every finished turn lands in Jetty as a durable,
  *                         labelled trajectory (or is judged inline by a native
  *                         Jetty `simple_judge` task, `judgeMode: "simple_judge"`)
- *   - instructions/arm    a per-turn dynamic-instructions resolver that runs an
+ *   - hooks/arm           chooses once at turn.started via an
  *                         episodic Thompson-sampling bandit over the configured
  *                         reply-style `arms`, rewarded by the pass-rates read
  *                         back from Jetty labels
+ *   - instructions/arm    reuses the chosen arm before every model call
  *   - tools/experiment    a tool the model can call to report the live
  *                         experiment status (per-arm pass rates + leader)
  *
@@ -19,10 +20,9 @@
  * extension degrades to a no-op (fair-coin styles, no ingest), so the consuming
  * agent still runs without Jetty credentials.
  *
- * Cross-module bookkeeping (which arm a turn ran, the turn's captured
- * input/reply/usage) lives in `defineState` (extension/lib/state.ts) — durable,
- * session-scoped, and auto-namespaced to this package, so it never collides
- * with the consuming agent's own state.
+ * Cross-module arm bookkeeping lives in `defineState` (extension/lib/state.ts)
+ * — durable, session-scoped, and namespaced to each mount. Input/reply/usage
+ * are read from the committed session snapshot at turn.settled.
  */
 import { defineExtension } from "eve/extension";
 import { z } from "zod";

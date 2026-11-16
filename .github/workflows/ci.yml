@@ -50,6 +50,7 @@ jobs:
       - run: npm run build -w @jetty/eve
       - run: npm run typecheck
       - run: npm test
+      - run: npm test -w @jetty/eve
 
   publish-dry-run:
     name: npm pack --dry-run
