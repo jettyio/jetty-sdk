@@ -22,6 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # Node 22 bundles npm 10.9.x, whose resolver crashes on vitest's peer set
+      # ("Cannot read properties of null (reading 'edgesOut')"). npm 11 resolves
+      # it and supports the whole matrix (Node 20.17+ / 22.9+).
+      - run: npm install -g npm@11
       # `npm install` (not `npm ci`) on purpose: we don't commit a lockfile, so
       # Linux regenerates the platform-correct optional native deps each run.
       - run: npm install -w @jetty/sdk --no-audit --no-fund
