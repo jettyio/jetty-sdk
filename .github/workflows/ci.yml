@@ -48,7 +48,7 @@ jobs:
       - run: npm test
 
   publish-dry-run:
-    name: npm publish --dry-run
+    name: npm pack --dry-run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,4 +57,8 @@ jobs:
           node-version: 24
       - run: npm install --no-audit --no-fund
       - run: npm run build -w @jetty/sdk
-      - run: npm publish -w @jetty/sdk --dry-run
+      # `pack --dry-run`, not `publish --dry-run`: publish checks the registry
+      # and fails whenever package.json's version is already published — i.e.
+      # at every commit between releases. Pack validates the same tarball
+      # (files, exports, prepack) without the version-collision check.
+      - run: npm pack -w @jetty/sdk --dry-run

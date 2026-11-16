@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "eve extension build && tsc -p tsconfig.reporter.json",
-    "prepare": "eve extension build && tsc -p tsconfig.reporter.json",
+    "prepack": "eve extension build && tsc -p tsconfig.reporter.json",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.reporter.json --noEmit"
   },
   "dependencies": {
