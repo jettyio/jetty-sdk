@@ -12,7 +12,7 @@
 import { defineAgent } from "eve";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
+const MODEL = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5.5";
 const useOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
 
 const model = useOpenRouter

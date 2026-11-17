@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const gradeTask = process.env.JETTY_GRADE_TASK ?? "triage-grader";
   const author = process.env.JETTY_AUTHOR ?? "eve@acme.example";
   const eveUrl = process.env.EVE_URL ?? "http://127.0.0.1:2000";
-  const model = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5";
+  const model = process.env.EVE_MODEL ?? "anthropic/claude-sonnet-5.5";
   const n = Number(process.env.EVAL_TICKETS ?? 2);
   const tickets = TICKETS.slice(0, Math.max(1, n));
 

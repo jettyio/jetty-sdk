@@ -44,7 +44,7 @@ live run produces, no spend.
 
 ## Run it for real
 
-The agent (`claude-sonnet-4-6`) drafts. An **independent rubric** grades each
+The agent (`claude-sonnet-5-5`) drafts. An **independent rubric** grades each
 draft: a Jetty runbook running a deterministic Python scorer, reproducible and
 not written by the agent. Swap in an LLM judge by editing `grader/RUNBOOK.md`.
 
